@@ -1,13 +1,3 @@
-#include <Arduino.h>
-
-void setup() {
-  // put your setup code here, to run once:
-}
-
-void loop() {
-  // put your main code here, to run repeatedly:
-}
-
 /*
   Rui Santos
   Complete project details at https://RandomNerdTutorials.com/?s=esp-now
@@ -15,7 +5,7 @@ void loop() {
   The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
   Based on JC Servaye example: https://github.com/Servayejc/esp_now_sender/
 */
-
+#include <Arduino.h>
 #include <Arduino.h>
 #include <esp_now.h>
 #include <esp_wifi.h>
