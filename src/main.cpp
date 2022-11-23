@@ -13,8 +13,8 @@
 #include <EEPROM.h>
 
 // Set your Board and Server ID 
-#define BOARD_ID 1
-#define MAX_CHANNEL 11  // for North America // 13 in Europe
+#define BOARD_ID 1 // Cal definir cada placa amb el seu numero
+#define MAX_CHANNEL 13  // for North America // 13 in Europe
 
 uint8_t serverAddress[] = {0xFF,0xFF,0xFF,0xFF,0xFF,0xFF};
 
@@ -75,7 +75,7 @@ float readDHTHumidity() {
   return h;
 }
 
-void addPeer(const uint8_t * mac_addr, uint8_t chan){
+void addPeer(const uint8_t * mac_addr, uint8_t chan){ //Afegim 
   esp_now_peer_info_t peer;
   ESP_ERROR_CHECK(esp_wifi_set_channel(chan ,WIFI_SECOND_CHAN_NONE));
   esp_now_del_peer(mac_addr);
