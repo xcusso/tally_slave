@@ -16,6 +16,11 @@
 #define BOARD_ID 1 // Cal definir cada placa amb el seu numero
 #define MAX_CHANNEL 13  // for North America // 13 in Europe
 
+// Configurem LED BUILTIN
+#ifndef LED_BUILTIN
+#define LED_BUILTIN 13 // efinim el LED local de la placa
+#endif
+
 uint8_t serverAddress[] = {0xFF,0xFF,0xFF,0xFF,0xFF,0xFF};
 
 //Structure to send data
