@@ -1,3 +1,9 @@
+/* 
+ TALLY SLAVE 
+ 
+ Firmware per gestionar un sistema de Tally's inhalambrics.
+
+ */
 /*
   Rui Santos
   Complete project details at https://RandomNerdTutorials.com/?s=esp-now
@@ -14,6 +20,7 @@
 
 // Set your Board and Server ID 
 #define BOARD_ID 1 // Cal definir cada placa amb el seu numero
+// TODO Poder definir en el menu el numero
 #define MAX_CHANNEL 13  // for North America // 13 in Europe
 
 // Configurem LED BUILTIN
@@ -35,6 +42,7 @@ typedef struct struct_message {
   unsigned int readingId;
 } struct_message;
 
+// Estructura pairing
 typedef struct struct_pairing {       // new structure for pairing
     uint8_t msgType;
     uint8_t id;
@@ -42,15 +50,48 @@ typedef struct struct_pairing {       // new structure for pairing
     uint8_t channel;
 } struct_pairing;
 
+// Estrucrtura dades rebuda de master
+typedef struct struct_message_from_master {
+  uint8_t msgType;
+  uint8_t funcio; // Identificador de la funcio del tally
+  bool led_roig; // llum confirmació cond polsador vermell
+  bool led_verd;    // llum confirmació cond polsador verd
+  uint8_t color_tally; // Color indexat del tally
+  // text per mostrar a pantalla
+} struct_message;
+
+// Estrucrtura dades per enviar a master
+typedef struct struct_message_to_master {
+  uint8_t msgType;
+  uint8_t id;     // Identificador del tally
+  uint8_t funcio; // Identificador de la funcio del tally
+  bool boto_vermell;
+  bool boto_verd;
+} struct_message;
+
+// Estructura dades per rebre bateries
+typedef struct struct_bateria_info {
+  uint8_t msgType;
+  uint8_t id;     // Identificador del tally
+  float volts; // Lectura en volts
+  float percent; // Percentatge carrega
+  unsigned int readingId; // Identificador de lectura
+} struct_message;
+
+// Estructura dades per rebre clock
+// TODO
+
 //Create 2 struct_message 
 struct_message myData;  // data to send
 struct_message inData;  // data received
 struct_pairing pairingData;
-
+struct_message_from_master inTally; // dades del master cap al tally
+struct_message_to_master outTally; // dades del tally cap al master
+struct_bateria_info bateria_info; // dades de la bateria cap al master
 enum PairingStatus {NOT_PAIRED, PAIR_REQUEST, PAIR_REQUESTED, PAIR_PAIRED,};
 PairingStatus pairingStatus = NOT_PAIRED;
 
-enum MessageType {PAIRING, DATA,};
+enum MessageType {PAIRING, DATA, TALLY, BATERIA, CLOCK};
 MessageType messageType;
 
 #ifdef SAVE_CHANNEL
@@ -59,8 +100,8 @@ MessageType messageType;
 int channel = 1;
  
 // simulate temperature and humidity data
-float t = 0;
-float h = 0;
+float volt = 0;
+float percent = 0;
 
 unsigned long currentMillis = millis();
 unsigned long previousMillis = 0;   // Stores last time temperature was published
@@ -68,15 +109,15 @@ const long interval = 10000;        // Interval at which to publish sensor readi
 unsigned long start;                // used to measure Pairing time
 unsigned int readingId = 0;   
 
-// simulate temperature reading
-float readDHTTemperature() {
-  t = random(0,40);
+// Simulem lectura de bateria
+float readBateriaVolts() {
+  volt = random(0,40);
   return t;
 }
 
-// simulate humidity reading
-float readDHTHumidity() {
-  h = random(0,100);
+// Simulem lectura percentatge bateria
+float readBateriaPercent() {
+  percent = random(0,100);
   return h;
 }
 
@@ -133,7 +174,23 @@ void OnDataRecv(const uint8_t * mac_addr, const uint8_t *incomingData, int len) 
     }
     break;
 
-  case PAIRING:    // we received pairing data from server
+  case TALLY:    // Missatge del tipus TALLY
+    memcpy(&inTally, incomingData, sizeof(inTally));
+    Serial.print("Funció  = ");
+    Serial.println(inTally.funcio);
+    Serial.print("Led roig = ");
+    Serial.println(inTally.led_roig);
+    Serial.print("Led verd= ");
+    Serial.println(inTally.led_verd);
+    Serial.print("Color tally  = ");
+    Serial.println(inTally.color_tally);
+    // TODO Falta el texte
+    // CRIDAR SUBRUTINA ESCRIURE LED
+    // CRIDAR SUBRUTINA ESCRIURE TALLY
+    // CRIDAR SUBRUTINA ESCRIURE TEXT
+    break;
+
+    case PAIRING:    // we received pairing data from server
     memcpy(&pairingData, incomingData, sizeof(pairingData));
     if (pairingData.id == 0) {              // the message comes from server
       printMAC(mac_addr);
@@ -234,12 +291,14 @@ void loop() {
       // Save the last time a new reading was published
       previousMillis = currentMillis;
       //Set values to send
-      myData.msgType = DATA;
-      myData.id = BOARD_ID;
-      myData.temp = readDHTTemperature();
-      myData.hum = readDHTHumidity();
-      myData.readingId = readingId++;
-      esp_err_t result = esp_now_send(serverAddress, (uint8_t *) &myData, sizeof(myData));
+      bateria_info.msgType = BATERIA;
+      bateria_info.id = BOARD_ID;
+      bateria_info.volts = readBateriaVolts();
+      bateria_info.percent = readBateriaPercent();
+      bateria_info.readingId = readingId++;
+      esp_err_t result = esp_now_send(serverAddress, (uint8_t *) &bateria_info, sizeof(bateria_info));
     }
+    // Llegir pulsadors
+    // Si polsadors han canviat enviar valors
   }
 }
