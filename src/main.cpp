@@ -458,6 +458,10 @@ void OnDataRecv(const uint8_t *mac_addr, const uint8_t *incomingData, int len)
       }
       break;
 
+    case CLOCK: // Missatge sincronització hora
+                // El que calgui fer
+      break;
+
     case PAIRING: // we received pairing data from server
       memcpy(&pairingData, incomingData, sizeof(pairingData));
       if (pairingData.id == 0)
