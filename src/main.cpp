@@ -126,7 +126,7 @@ typedef struct struct_message_from_master
   bool led_verd;       // llum confirmació cond polsador verd
   uint8_t color_tally; // Color indexat del tally
   // text per mostrar a pantalla
-} struct_message;
+} struct_message_from_master;
 
 // Estrucrtura dades per enviar a master
 typedef struct struct_message_to_master
@@ -136,7 +136,7 @@ typedef struct struct_message_to_master
   uint8_t funcio; // Identificador de la funcio del tally
   bool boto_roig;
   bool boto_verd;
-} struct_message;
+} struct_message_to_master;
 
 // Estructura dades per rebre bateries
 typedef struct struct_bateria_info
@@ -146,7 +146,7 @@ typedef struct struct_bateria_info
   float volts;            // Lectura en volts
   float percent;          // Percentatge carrega
   unsigned int readingId; // Identificador de lectura
-} struct_message;
+} struct__bateria_info;
 
 // Estructura dades per rebre clock
 // TODO
@@ -245,7 +245,7 @@ void escriure_matrix(uint8_t color)
 void comunicar_polsadors()
 {
   outTally.msgType = TALLY;
-  outTally.id = BOARD_ID
+  outTally.id = BOARD_ID;
   outTally.funcio = funcio_local;
   outTally.boto_roig = BOTO_LOCAL_ROIG[1];
   outTally.boto_verd = BOTO_LOCAL_VERD[1];
@@ -450,8 +450,10 @@ void OnDataRecv(const uint8_t *mac_addr, const uint8_t *incomingData, int len)
       }
       if (inTally.funcio = funcio_local)
       {
+        LED_LOCAL_ROIG = inTally.led_roig; // Carreguem el valor rebut al LED roig
+        LED_LOCAL_VERD = inTally.led_verd; // Carreguem el valor rebut al LED verd
         escriure_leds();   // CRIDAR SUBRUTINA ESCRIURE LED
-        escriure_matrix(); // CRIDAR SUBRUTINA ESCRIURE TALLY
+        escriure_matrix(inTally.color_tally); // CRIDAR SUBRUTINA ESCRIURE TALLY
         // escriure_text();    // CRIDAR SUBRUTINA ESCRIURE TEXT
       }
       break;
