@@ -31,7 +31,7 @@ Lectura valors reals bateria
 #include <EEPROM.h>
 #include <Adafruit_NeoPixel.h> //Control neopixels
 
-#define VERSIO 1 // Versió del software
+#define VERSIO S1 // Versió del software
 
 // Bool per veure missatges de debug
 bool debug = true;
@@ -145,7 +145,7 @@ typedef struct struct_bateria_info
   uint8_t id;             // Identificador del tally
   float volts;            // Lectura en volts
   float percent;          // Percentatge carrega
-  unsigned int readingId; // Identificador de lectura
+  // Revisar !!!! unsigned int readingId; // Identificador de lectura
 } struct__bateria_info;
 
 // Estructura dades per rebre clock
@@ -155,8 +155,8 @@ typedef struct struct_bateria_info
 struct_message myData; // data to send
 struct_message inData; // data received
 struct_pairing pairingData;
-struct_message_from_master inTally; // dades del master cap al tally
-struct_message_to_master outTally;  // dades del tally cap al master
+struct_message_from_master fromMaster; // dades del master cap al tally
+struct_message_to_master toMaster;  // dades del tally cap al master
 struct_bateria_info bateria_info;   // dades de la bateria cap al master
 
 enum PairingStatus
@@ -244,14 +244,14 @@ void escriure_matrix(uint8_t color)
 
 void comunicar_polsadors()
 {
-  outTally.msgType = TALLY;
-  outTally.id = BOARD_ID;
-  outTally.funcio = funcio_local;
-  outTally.boto_roig = BOTO_LOCAL_ROIG[1];
-  outTally.boto_verd = BOTO_LOCAL_VERD[1];
+  toMaster.msgType = TALLY;
+  toMaster.id = BOARD_ID;
+  toMaster.funcio = funcio_local;
+  toMaster.boto_roig = BOTO_LOCAL_ROIG[1];
+  toMaster.boto_verd = BOTO_LOCAL_VERD[1];
 
   // Send message via ESP-NOW
-  esp_err_t result = esp_now_send(serverAddress, (uint8_t *)&outTally, sizeof(outTally));
+  esp_err_t result = esp_now_send(serverAddress, (uint8_t *)&toMaster, sizeof(toMaster));
   if (result == ESP_OK)
   {
     Serial.println("Sent polsadors with success");
@@ -435,25 +435,25 @@ void OnDataRecv(const uint8_t *mac_addr, const uint8_t *incomingData, int len)
       break;
 
     case TALLY: // Missatge del tipus TALLY
-      memcpy(&inTally, incomingData, sizeof(inTally));
+      memcpy(&fromMaster, incomingData, sizeof(fromMaster));
       if (debug)
       {
         Serial.print("Funció  = ");
-        Serial.println(inTally.funcio);
+        Serial.println(fromMaster.funcio);
         Serial.print("Led roig = ");
-        Serial.println(inTally.led_roig);
+        Serial.println(fromMaster.led_roig);
         Serial.print("Led verd= ");
-        Serial.println(inTally.led_verd);
+        Serial.println(fromMaster.led_verd);
         Serial.print("Color tally  = ");
-        Serial.println(inTally.color_tally);
+        Serial.println(fromMaster.color_tally);
         // TODO Falta el texte
       }
-      if (inTally.funcio = funcio_local)
+      if (fromMaster.funcio = funcio_local)
       {
-        LED_LOCAL_ROIG = inTally.led_roig; // Carreguem el valor rebut al LED roig
-        LED_LOCAL_VERD = inTally.led_verd; // Carreguem el valor rebut al LED verd
+        LED_LOCAL_ROIG = fromMaster.led_roig; // Carreguem el valor rebut al LED roig
+        LED_LOCAL_VERD = fromMaster.led_verd; // Carreguem el valor rebut al LED verd
         escriure_leds();   // CRIDAR SUBRUTINA ESCRIURE LED
-        escriure_matrix(inTally.color_tally); // CRIDAR SUBRUTINA ESCRIURE TALLY
+        escriure_matrix(fromMaster.color_tally); // CRIDAR SUBRUTINA ESCRIURE TALLY
         // escriure_text();    // CRIDAR SUBRUTINA ESCRIURE TEXT
       }
       break;
