@@ -4,6 +4,18 @@
  Firmware per gestionar un sistema de Tally's inhalambrics.
 
  */
+
+/* 
+TODO
+
+Fer menu selecció funció local
+Implentar Display 
+Implentar hora
+Implentar mostrar texete
+Lectura valors reals bateria
+
+*/
+
 /*
   Rui Santos
   Complete project details at https://RandomNerdTutorials.com/?s=esp-now
@@ -85,6 +97,7 @@ uint8_t serverAddress[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 // Must match the receiver structure
 //  Structure example to receive data
 //  Must match the sender structure
+// TODO ELIMINAR
 typedef struct struct_message
 {
   uint8_t msgType;
@@ -93,6 +106,7 @@ typedef struct struct_message
   float hum;
   unsigned int readingId;
 } struct_message;
+// ELIMINAR FINS AQUI
 
 // Estructura pairing
 typedef struct struct_pairing
@@ -167,19 +181,18 @@ MessageType messageType;
 // Definim les funcions del Tally
 enum TipusFuncio
 {
-  LLUM,
-  CONDUCTOR,
-  PRODUCTOR
+  LLUM,           // Els Tally tan sols s'iluminen amb el color que indica el Master
+  CONDUCTOR,      // Els polsadors tenen la funció del CONDUCTOR
+  PRODUCTOR       // Els polsadors tenen a funció del PRODUCTOR
 };
-TipusFuncio funcio_local = LLUM;
-
+TipusFuncio funcio_local = LLUM; // Assignem LLUM per decfecte
 
 #ifdef SAVE_CHANNEL
 int lastChannel;
 #endif
 int channel = 1;
 
-// simulate temperature and humidity data
+// simulate batery level
 float volt = 0;
 float percent = 0;
 
@@ -190,6 +203,7 @@ unsigned long start;              // used to measure Pairing time
 unsigned int readingId = 0;
 
 // Simulem lectura de bateria
+// TODO Unificar lectura volts i convertir a nivells
 float readBateriaVolts()
 {
   volt = random(0, 40); // = analogRead(BATTERY_PIN)
@@ -228,7 +242,7 @@ void escriure_matrix(uint8_t color)
   }
 }
 
-void comunicar_valors()
+void comunicar_polsadors()
 {
   outTally.msgType = TALLY;
   outTally.id = BOARD_ID
@@ -237,15 +251,26 @@ void comunicar_valors()
   outTally.boto_verd = BOTO_LOCAL_VERD[1];
 
   // Send message via ESP-NOW
-  esp_err_t result = esp_now_send(serverAddress, (uint8_t *)&bateria_info, sizeof(bateria_info));
+  esp_err_t result = esp_now_send(serverAddress, (uint8_t *)&outTally, sizeof(outTally));
   if (result == ESP_OK)
   {
     Serial.println("Sent polsadors with success");
   }
   else
   {
-    Serial.println("Error sending the data");
+    Serial.println("Error sending polsadors data");
   }
+}
+
+void comunicar_bateria()
+{
+  // Set values to send
+  bateria_info.msgType = BATERIA;
+  bateria_info.id = BOARD_ID;
+  bateria_info.volts = readBateriaVolts();
+  bateria_info.percent = readBateriaPercent();
+  bateria_info.readingId = readingId++;
+  esp_err_t result = esp_now_send(serverAddress, (uint8_t *)&bateria_info, sizeof(bateria_info));
 }
 
 void llegir_botons()
@@ -315,6 +340,23 @@ void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status)
   Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
 }
 
+
+void Menu_configuracio()
+{
+  // Desenvolupar aqui el mode configuració
+  // TODO:  Seleccionar entre LLUM, CONDUCTOR i PRODUCTOR
+  // Veure com generem menu
+  /*
+  Si opcio 1
+    funcio_local = LLUM;
+  Si opció 2
+    funcio_local = CONDUCTOR;
+  Si opcio 3
+    funcio_local = PRODUCTOR;
+  */
+  // Comunicar nova funció
+}
+
 void detectar_mode_configuracio()
 {
   if (LOCAL_CHANGE)
@@ -323,8 +365,8 @@ void detectar_mode_configuracio()
     {
       // Tenim els dos polsadors apretats i no estem en pre_mode_configuracio
       // Entrarem al mode CONFIG
-      temps_set_config = millis();
-      pre_mode_configuracio = true;
+      temps_set_config = millis();      // Llegim el temps actual per entrar a mode config
+      pre_mode_configuracio = true;     //Situem el flag en pre-mode-confi
       if (debug)
       {
         Serial.print("PRE CONFIGURACIO MODE");
@@ -342,6 +384,7 @@ void detectar_mode_configuracio()
           Serial.print("CONFIGURACIO MODE");
         }
         // TODO: Cridar mode config
+        Menu_configuracio();
       }
       else
       {
@@ -364,71 +407,77 @@ void OnDataRecv(const uint8_t *mac_addr, const uint8_t *incomingData, int len)
   Serial.print("data size = ");
   Serial.println(sizeof(incomingData));
   uint8_t type = incomingData[0];
-  switch (type)
+  if (!mode_configuracio) //Si no estem en mode configuració
   {
-  case DATA: // we received data from server
-    memcpy(&inData, incomingData, sizeof(inData));
-    if (debug)
+    switch (type)
     {
-      Serial.print("ID  = ");
-      Serial.println(inData.id);
-      Serial.print("Setpoint temp = ");
-      Serial.println(inData.temp);
-      Serial.print("SetPoint humidity = ");
-      Serial.println(inData.hum);
-      Serial.print("reading Id  = ");
-      Serial.println(inData.readingId);
-    }
-    if (inData.readingId % 2 == 1)
-    {
-      digitalWrite(LED_BUILTIN, LOW);
-    }
-    else
-    {
-      digitalWrite(LED_BUILTIN, HIGH);
-    }
-    break;
+    case DATA: // we received data from server
+      memcpy(&inData, incomingData, sizeof(inData));
+      if (debug)
+      {
+        Serial.print("ID  = ");
+        Serial.println(inData.id);
+        Serial.print("Setpoint temp = ");
+        Serial.println(inData.temp);
+        Serial.print("SetPoint humidity = ");
+        Serial.println(inData.hum);
+        Serial.print("reading Id  = ");
+        Serial.println(inData.readingId);
+      }
+      if (inData.readingId % 2 == 1)
+      {
+        digitalWrite(LED_BUILTIN, LOW);
+      }
+      else
+      {
+        digitalWrite(LED_BUILTIN, HIGH);
+      }
+      break;
 
-  case TALLY: // Missatge del tipus TALLY
-    memcpy(&inTally, incomingData, sizeof(inTally));
-    if (debug)
-    {
-      Serial.print("Funció  = ");
-      Serial.println(inTally.funcio);
-      Serial.print("Led roig = ");
-      Serial.println(inTally.led_roig);
-      Serial.print("Led verd= ");
-      Serial.println(inTally.led_verd);
-      Serial.print("Color tally  = ");
-      Serial.println(inTally.color_tally);
-      // TODO Falta el texte
-    }
-    // CRIDAR SUBRUTINA ESCRIURE LED
-    // CRIDAR SUBRUTINA ESCRIURE TALLY
-    // CRIDAR SUBRUTINA ESCRIURE TEXT
-    break;
+    case TALLY: // Missatge del tipus TALLY
+      memcpy(&inTally, incomingData, sizeof(inTally));
+      if (debug)
+      {
+        Serial.print("Funció  = ");
+        Serial.println(inTally.funcio);
+        Serial.print("Led roig = ");
+        Serial.println(inTally.led_roig);
+        Serial.print("Led verd= ");
+        Serial.println(inTally.led_verd);
+        Serial.print("Color tally  = ");
+        Serial.println(inTally.color_tally);
+        // TODO Falta el texte
+      }
+      if (inTally.funcio = funcio_local)
+      {
+        escriure_leds();   // CRIDAR SUBRUTINA ESCRIURE LED
+        escriure_matrix(); // CRIDAR SUBRUTINA ESCRIURE TALLY
+        // escriure_text();    // CRIDAR SUBRUTINA ESCRIURE TEXT
+      }
+      break;
 
-  case PAIRING: // we received pairing data from server
-    memcpy(&pairingData, incomingData, sizeof(pairingData));
-    if (pairingData.id == 0)
-    { // the message comes from server
-      printMAC(mac_addr);
-      Serial.print("Pairing done for ");
-      printMAC(pairingData.macAddr);
-      Serial.print(" on channel ");
-      Serial.print(pairingData.channel); // channel used by the server
-      Serial.print(" in ");
-      Serial.print(millis() - start);
-      Serial.println("ms");
-      addPeer(pairingData.macAddr, pairingData.channel); // add the server  to the peer list
+    case PAIRING: // we received pairing data from server
+      memcpy(&pairingData, incomingData, sizeof(pairingData));
+      if (pairingData.id == 0)
+      { // the message comes from server
+        printMAC(mac_addr);
+        Serial.print("Pairing done for ");
+        printMAC(pairingData.macAddr);
+        Serial.print(" on channel ");
+        Serial.print(pairingData.channel); // channel used by the server
+        Serial.print(" in ");
+        Serial.print(millis() - start);
+        Serial.println("ms");
+        addPeer(pairingData.macAddr, pairingData.channel); // add the server  to the peer list
 #ifdef SAVE_CHANNEL
-      lastChannel = pairingData.channel;
-      EEPROM.write(0, pairingData.channel);
-      EEPROM.commit();
+        lastChannel = pairingData.channel;
+        EEPROM.write(0, pairingData.channel);
+        EEPROM.commit();
 #endif
-      pairingStatus = PAIR_PAIRED; // set the pairing status
+        pairingStatus = PAIR_PAIRED; // set the pairing status
+      }
+      break;
     }
-    break;
   }
 }
 
@@ -531,20 +580,19 @@ void loop()
     {
       // Save the last time a new reading was published
       previousMillis = currentMillis;
-      // Set values to send
-      bateria_info.msgType = BATERIA;
-      bateria_info.id = BOARD_ID;
-      bateria_info.volts = readBateriaVolts();
-      bateria_info.percent = readBateriaPercent();
-      bateria_info.readingId = readingId++;
-      esp_err_t result = esp_now_send(serverAddress, (uint8_t *)&bateria_info, sizeof(bateria_info));
+      readBateriaVolts();           // Llegim bateria volts
+      readBateriaPercent();         // Llegim percentatge bateria
+      comunicar_bateria();          // Comuniqem valor bateria
     }
     LOCAL_CHANGE = false;
-    llegir_botons();              // Funcio per llegir valors
-    detectar_mode_configuracio(); // Mirem si estan els dos apretats per CONFIG
-    if (LOCAL_CHANGE)
+    if (!mode_configuracio)         // Si no estem en mode configuracio
     {
-      comunicar_valors(); // Funció per comunicar valors
+      llegir_botons();              // Funcio per llegir valors
+      detectar_mode_configuracio(); // Mirem si estan els dos apretats per CONFIG
+      if (LOCAL_CHANGE)
+      {
+        comunicar_polsadors();      // Funció per comunicar valors
+      }
     }
   }
 }
