@@ -31,7 +31,7 @@ Lectura valors reals bateria
 #include <EEPROM.h>
 #include <Adafruit_NeoPixel.h> //Control neopixels
 
-#define VERSIO S1 // Versió del software
+#define VERSIO "S1" // Versió del software
 
 // Bool per veure missatges de debug
 bool debug = true;
@@ -269,7 +269,7 @@ void comunicar_bateria()
   bateria_info.id = BOARD_ID;
   bateria_info.volts = readBateriaVolts();
   bateria_info.percent = readBateriaPercent();
-  bateria_info.readingId = readingId++;
+  // bateria_info.readingId = readingId++;
   esp_err_t result = esp_now_send(serverAddress, (uint8_t *)&bateria_info, sizeof(bateria_info));
 }
 
