@@ -30,6 +30,7 @@ Lectura valors reals bateria
 #include <WiFi.h>
 #include <EEPROM.h>
 #include <Adafruit_NeoPixel.h> //Control neopixels
+#include <LiquidCrystal_I2C.h> //Control display cristall liquid
 
 #define VERSIO "S1" // Versió del software
 
@@ -43,7 +44,7 @@ bool debug = true;
 
 // Configurem LED BUILTIN
 #ifndef LED_BUILTIN
-#define LED_BUILTIN 13 // efinim el LED local de la placa
+#define LED_BUILTIN 13 // definim el LED local de la placa
 #endif
 
 // Define PINS
@@ -74,6 +75,9 @@ const uint8_t COLOR[][6] = {{0, 0, 0},        // 0- NEGRE
                             {255, 255, 255}}; // 7- BLANC
 
 uint8_t color_matrix = 0; // Per determinar color local
+
+// Declarem el display LCD
+LiquidCrystal_I2C lcd(0x27, 16, 2); //0x27 adreça I2C 16 = Caracters 2= Linees
 
 // Variables
 // Fem arrays de dos valors la 0 és anterior la 1 actual
@@ -544,8 +548,15 @@ PairingStatus autoPairing()
 
 void setup()
 {
+  // Initialize Serial Monitor
   Serial.begin(115200);
+
+  lcd.init(); // Inicialitzem lcd
+  lcd.backlight(); // Arrenquem la llum de fons lcd
+  lcd.clear(); // Esborrem la pantalla
+
   Serial.println();
+  
   pinMode(LED_BUILTIN, OUTPUT);
 
   // Configurem els pins BOTONS/LEDS
@@ -553,11 +564,20 @@ void setup()
   pinMode(BOTO_VERD_PIN, INPUT_PULLUP);
   pinMode(LED_ROIG_PIN, OUTPUT);
   pinMode(LED_VERD_PIN, OUTPUT);
+  
   Serial.println("ESP32 TALLY SLAVE");
   Serial.print("Versió: ");
   Serial.println(VERSIO);
   Serial.print("Client Board MAC Address:  ");
   Serial.println(WiFi.macAddress());
+
+  lcd.setCursor(0,0); // Situem cursor primer caracter, primera linea
+  lcd.print("ESP32 TALLY SLAVE");
+  lcd.setCursor(0,1); // Primer caracter, segona linea
+  lcd.print("Versió: ");
+  lcd.setCursor(9,1); // Caracter 9, segona linea
+  lcd.print(VERSIO);
+
   WiFi.mode(WIFI_STA);
   WiFi.disconnect();
   start = millis();
