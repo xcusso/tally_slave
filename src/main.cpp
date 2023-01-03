@@ -565,8 +565,8 @@ void setup()
   pinMode(LED_ROIG_PIN, OUTPUT);
   pinMode(LED_VERD_PIN, OUTPUT);
   
-  Serial.println("ESP32 TALLY SLAVE");
-  Serial.print("Versió: ");
+  Serial.println("TALLY SLAVE");
+  Serial.print("Versio: ");
   Serial.println(VERSIO);
   Serial.print("Client Board MAC Address:  ");
   Serial.println(WiFi.macAddress());
