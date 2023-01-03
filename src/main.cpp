@@ -572,9 +572,9 @@ void setup()
   Serial.println(WiFi.macAddress());
 
   lcd.setCursor(0,0); // Situem cursor primer caracter, primera linea
-  lcd.print("ESP32 TALLY SLAVE");
+  lcd.print("TALLY SLAVE");
   lcd.setCursor(0,1); // Primer caracter, segona linea
-  lcd.print("Versió: ");
+  lcd.print("Versio: ");
   lcd.setCursor(9,1); // Caracter 9, segona linea
   lcd.print(VERSIO);
 
