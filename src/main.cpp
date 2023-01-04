@@ -49,8 +49,8 @@ bool debug = true;
 
 // Define PINS
 // Botons i leds locals
-#define BOTO_ROIG_PIN 16
-#define BOTO_VERD_PIN 5
+#define POLSADOR_ROIG_PIN 16
+#define POLSADOR_VERD_PIN 5
 #define LED_ROIG_PIN 17
 #define LED_VERD_PIN 18
 #define MATRIX_PIN 4
@@ -81,8 +81,8 @@ LiquidCrystal_I2C lcd(0x27, 16, 2); //0x27 adreça I2C 16 = Caracters 2= Linees
 
 // Variables
 // Fem arrays de dos valors la 0 és anterior la 1 actual
-bool BOTO_LOCAL_ROIG[] = {false, false};
-bool BOTO_LOCAL_VERD[] = {false, false};
+bool POLSADOR_LOCAL_ROIG[] = {false, false};
+bool POLSADOR_LOCAL_VERD[] = {false, false};
 
 // Valor dels leds (dels polsadors)
 bool LED_LOCAL_ROIG = false;
@@ -139,8 +139,8 @@ typedef struct struct_message_to_master
   uint8_t msgType;
   uint8_t id;     // Identificador del tally
   uint8_t funcio; // Identificador de la funcio del tally
-  bool boto_roig;
-  bool boto_verd;
+  bool polsador_roig;
+  bool polsador_verd;
 } struct_message_to_master;
 
 // Estructura dades per rebre bateries
@@ -252,8 +252,8 @@ void comunicar_polsadors()
   toMaster.msgType = TALLY;
   toMaster.id = BOARD_ID;
   toMaster.funcio = funcio_local;
-  toMaster.boto_roig = BOTO_LOCAL_ROIG[1];
-  toMaster.boto_verd = BOTO_LOCAL_VERD[1];
+  toMaster.polsador_roig = POLSADOR_LOCAL_ROIG[1];
+  toMaster.polsador_verd = POLSADOR_LOCAL_VERD[1];
 
   // Send message via ESP-NOW
   esp_err_t result = esp_now_send(serverAddress, (uint8_t *)&toMaster, sizeof(toMaster));
@@ -278,32 +278,32 @@ void comunicar_bateria()
   esp_err_t result = esp_now_send(serverAddress, (uint8_t *)&bateria_info, sizeof(bateria_info));
 }
 
-void llegir_botons()
+void llegir_polsadors()
 {
-  BOTO_LOCAL_ROIG[1] = !digitalRead(BOTO_ROIG_PIN); // Els botons son PULLUP per tant els llegirem al revés
-  BOTO_LOCAL_VERD[1] = !digitalRead(BOTO_VERD_PIN);
-  // Detecció canvi de botons locals
-  if (BOTO_LOCAL_ROIG[0] != BOTO_LOCAL_ROIG[1])
+  POLSADOR_LOCAL_ROIG[1] = !digitalRead(POLSADOR_ROIG_PIN); // Els botons son PULLUP per tant els llegirem al revés
+  POLSADOR_LOCAL_VERD[1] = !digitalRead(POLSADOR_VERD_PIN);
+  // Detecció canvi de polsadors locals
+  if (POLSADOR_LOCAL_ROIG[0] != POLSADOR_LOCAL_ROIG[1])
   {
-    /// HEM POLSAT EL BOTO ROIG
+    /// HEM POLSAT EL POLSADOR ROIG
     LOCAL_CHANGE = true;
-    BOTO_LOCAL_ROIG[0] = BOTO_LOCAL_ROIG[1];
+    POLSADOR_LOCAL_ROIG[0] = POLSADOR_LOCAL_ROIG[1];
     if (debug)
     {
       Serial.print("Boto local ROIG: ");
-      Serial.println(BOTO_LOCAL_ROIG[0]);
+      Serial.println(POLSADOR_LOCAL_ROIG[0]);
     }
   }
 
-  if (BOTO_LOCAL_VERD[0] != BOTO_LOCAL_VERD[1])
+  if (POLSADOR_LOCAL_VERD[0] != POLSADOR_LOCAL_VERD[1])
   {
-    /// HEM POLSAT EL BOTO VERD
+    /// HEM POLSAT EL POLSADOR VERD
     LOCAL_CHANGE = true;
-    BOTO_LOCAL_VERD[0] = BOTO_LOCAL_VERD[1];
+    POLSADOR_LOCAL_VERD[0] = POLSADOR_LOCAL_VERD[1];
     if (debug)
     {
       Serial.print("Boto local VERD: ");
-      Serial.println(BOTO_LOCAL_VERD[0]);
+      Serial.println(POLSADOR_LOCAL_VERD[0]);
     }
   }
 }
@@ -366,7 +366,7 @@ void detectar_mode_configuracio()
 {
   if (LOCAL_CHANGE)
   {
-    if (BOTO_LOCAL_ROIG[0] && BOTO_LOCAL_VERD[0] && !pre_mode_configuracio)
+    if (POLSADOR_LOCAL_ROIG[0] && POLSADOR_LOCAL_VERD[0] && !pre_mode_configuracio)
     {
       // Tenim els dos polsadors apretats i no estem en pre_mode_configuracio
       // Entrarem al mode CONFIG
@@ -378,7 +378,7 @@ void detectar_mode_configuracio()
       }
     }
 
-    if ((!BOTO_LOCAL_ROIG[0] || !BOTO_LOCAL_VERD[0]) && pre_mode_configuracio)
+    if ((!POLSADOR_LOCAL_ROIG[0] || !POLSADOR_LOCAL_VERD[0]) && pre_mode_configuracio)
     { // Si deixem de pulsar botons i estavem en pre_mode_de_configuracio
       if ((millis()) >= (temps_config + temps_set_config))
       {                                // Si ha pasat el temps d'activació
@@ -559,9 +559,9 @@ void setup()
   
   pinMode(LED_BUILTIN, OUTPUT);
 
-  // Configurem els pins BOTONS/LEDS
-  pinMode(BOTO_ROIG_PIN, INPUT_PULLUP);
-  pinMode(BOTO_VERD_PIN, INPUT_PULLUP);
+  // Configurem els pins POLSADORNS/LEDS
+  pinMode(POLSADOR_ROIG_PIN, INPUT_PULLUP);
+  pinMode(POLSADOR_VERD_PIN, INPUT_PULLUP);
   pinMode(LED_ROIG_PIN, OUTPUT);
   pinMode(LED_VERD_PIN, OUTPUT);
   
