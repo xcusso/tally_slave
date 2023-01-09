@@ -32,7 +32,7 @@ Lectura valors reals bateria
 #include <Adafruit_NeoPixel.h> //Control neopixels
 #include <LiquidCrystal_I2C.h> //Control display cristall liquid
 
-#define VERSIO "S1" // Versió del software
+#define VERSIO "S1.1" // Versió del software
 
 // Bool per veure missatges de debug
 bool debug = true;
@@ -74,7 +74,9 @@ const uint8_t COLOR[][6] = {{0, 0, 0},        // 0- NEGRE
                             {128, 128, 0},    // 6- TARONJA
                             {255, 255, 255}}; // 7- BLANC
 
-uint8_t color_matrix = 0; // Per determinar color local
+uint8_t funcio_local_num = 0;       // 0 = TALLY, 1 = CONDUCTOR, 2 = PRODUCTOR
+uint8_t color_matrix[] = {0, 0, 0}; // 0 = TALLY, 1 = CONDUCTOR, 2 = PRODUCTOR
+
 
 // Declarem el display LCD
 LiquidCrystal_I2C lcd(0x27, 16, 2); //0x27 adreça I2C 16 = Caracters 2= Linees
@@ -97,6 +99,43 @@ bool pre_mode_configuracio = false;      // Inici mode configuració
 bool mode_configuracio = false;          // Mode configuració
 
 uint8_t serverAddress[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+
+// Text linea 2 que envia MASTER
+uint8_t display_text_1[] = {0, 0, 0}; // Primera linea 0 = TALLY, 1 = CONDUCTOR, 2 = PRODUCTOR
+uint8_t display_text_2[] = {0, 0, 0}; // Segona linea 0 = TALLY, 1 = CONDUCTOR, 2 = PRODUCTOR
+
+//     TEXT_1[] = "12345678""90123456"
+//                          "HH:MM:SS"
+//                          "NO CLOCK"
+String TEXT_1[] = {"       ",  // 0
+                   " TALLY ",  // 1
+                   " COND  ",  // 2
+                   " PROD  ",  // 3
+                   "CONFIG:",  // 4
+                   "NO LINK"}; // 5
+
+//     TEXT_2[] = "1234567890123456"
+String TEXT_2[] = {"                ",  // 0
+                   " FORA DE SERVEI ",  // 1
+                   " ERROR GPI VIA  ",  // 2
+                   "  ERROR GPI QL  ",  // 3
+                   "**** ON AIR ****",  // 4
+                   "ORD PROD A COND ",  // 5
+                   "ORD DE PRODUCTOR",  // 6
+                   "ORD A CONDUCTOR ",  // 7
+                   "ORD COND A PROD ",  // 8
+                   "ORD DE CONDUCTOR",  // 9
+                   "ORD A PRODUCTOR ",  // 10
+                   "ORD PROD A ESTUD",  // 11
+                   "ORDRES A ESTUDI ",  // 12
+                   "ORD COND A ESTUD",  // 13
+                   "TANCAT LOCALMENT",  // 14
+                   "TANCAT DE ESTUDI",  // 15
+                   "  MICRO TANCAT  ",  // 16
+                   "* ON AIR LOCAL *",  // 17
+                   "<MODE TALLY    >",  // 18
+                   "<MODE PRODUCTOR>",  // 19
+                   "<MODE CONDUCTOR>"}; // 20
 
 // Structure to send data
 // Must match the receiver structure
@@ -130,7 +169,7 @@ typedef struct struct_message_from_master
   bool led_roig;       // llum confirmació cond polsador roig
   bool led_verd;       // llum confirmació cond polsador verd
   uint8_t color_tally; // Color indexat del tally
-  // text per mostrar a pantalla
+  uint8_t text_2;   // Missatge per mostrar
 } struct_message_from_master;
 
 // Estrucrtura dades per enviar a master
@@ -220,6 +259,23 @@ float readBateriaPercent()
 {
   percent = random(0, 100);
   return percent;
+}
+
+void escriure_display_1(uint8_t txt1)
+{
+  lcd.setCursor(0, 0); // Situem cursor primer caracter, primera linea
+  lcd.print(TEXT_1[txt1]);
+}
+void escriure_display_2(uint8_t txt2)
+{
+  lcd.setCursor(0, 1); // Primer caracter, segona linea
+  lcd.print(TEXT_2[txt2]);
+}
+
+void escriure_display_clock(uint8_t temps_clock)
+{
+  lcd.setCursor(9, 0);   // Caracter 9, primera linea
+  lcd.print("HH:MM:SS"); // TODO -> POSAR TEMPS
 }
 
 // Posar llum a un color
@@ -451,7 +507,8 @@ void OnDataRecv(const uint8_t *mac_addr, const uint8_t *incomingData, int len)
         Serial.println(fromMaster.led_verd);
         Serial.print("Color tally  = ");
         Serial.println(fromMaster.color_tally);
-        // TODO Falta el texte
+        Serial.print("Missatge linea 2 = ");
+        Serial.println(fromMaster.text_2);
       }
       if (fromMaster.funcio = funcio_local)
       {
@@ -459,7 +516,7 @@ void OnDataRecv(const uint8_t *mac_addr, const uint8_t *incomingData, int len)
         LED_LOCAL_VERD = fromMaster.led_verd; // Carreguem el valor rebut al LED verd
         escriure_leds();   // CRIDAR SUBRUTINA ESCRIURE LED
         escriure_matrix(fromMaster.color_tally); // CRIDAR SUBRUTINA ESCRIURE TALLY
-        // escriure_text();    // CRIDAR SUBRUTINA ESCRIURE TEXT
+        escriure_display_2(fromMaster.text_2);    // CRIDAR SUBRUTINA ESCRIURE TEXT
       }
       break;
 
