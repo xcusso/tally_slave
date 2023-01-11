@@ -5,11 +5,11 @@
 
  */
 
-/* 
+/*
 TODO
 
 Fer menu selecció funció local
-Implentar Display 
+Implentar Display
 Implentar hora
 Implentar mostrar texete
 Lectura valors reals bateria
@@ -54,7 +54,8 @@ bool debug = true;
 #define LED_ROIG_PIN 17
 #define LED_VERD_PIN 18
 #define MATRIX_PIN 4
-
+// Definim temps per debouncer polsadors
+#define DEBOUNCE_DELAY 100 // Delay debouncer
 // Define Quantitat de leds
 #define LED_COUNT 72 // 8x8 + 8
 
@@ -68,20 +69,24 @@ Adafruit_NeoPixel llum(LED_COUNT, MATRIX_PIN, NEO_GRB + NEO_KHZ800);
 const uint8_t COLOR[][6] = {{0, 0, 0},        // 0- NEGRE
                             {0, 255, 0},      // 1- ROIG
                             {0, 0, 255},      // 2- BLAU
-                            {0,255,255},      // 3- CEL
+                            {0, 255, 255},    // 3- CEL
                             {255, 0, 0},      // 4- VERD
                             {128, 255, 0},    // 5- GROC
                             {128, 128, 0},    // 6- TARONJA
                             {255, 255, 255}}; // 7- BLANC
 
-uint8_t funcio_local_num = 0;       // 0 = TALLY, 1 = CONDUCTOR, 2 = PRODUCTOR
-uint8_t color_matrix[] = {0, 0, 0}; // 0 = TALLY, 1 = CONDUCTOR, 2 = PRODUCTOR
-
+uint8_t funcio_local_num = 0; // 0 = TALLY, 1 = CONDUCTOR, 2 = PRODUCTOR
+uint8_t color_matrix;
 
 // Declarem el display LCD
-LiquidCrystal_I2C lcd(0x27, 16, 2); //0x27 adreça I2C 16 = Caracters 2= Linees
+LiquidCrystal_I2C lcd(0x27, 16, 2); // 0x27 adreça I2C 16 = Caracters 2= Linees
 
 // Variables
+bool debouncing_roig = false; // Flag debouncing
+bool debouncing_verd = false; // Flag debouncing
+unsigned long last_time_roig; // Temps debouncing roig
+unsigned long last_time_verd; // Temps debouncing verd
+
 // Fem arrays de dos valors la 0 és anterior la 1 actual
 bool POLSADOR_LOCAL_ROIG[] = {false, false};
 bool POLSADOR_LOCAL_VERD[] = {false, false};
@@ -95,14 +100,16 @@ bool LOCAL_CHANGE = false; // Per saber si alguna cosa local ha canviat
 
 unsigned long temps_set_config = 0;      // Temps que ha d'estar apretat per configuracio
 const unsigned long temps_config = 5000; // Temps per disparar opció config
+unsigned long temps_post_config = 0;     // Temps per sortir config
 bool pre_mode_configuracio = false;      // Inici mode configuració
 bool mode_configuracio = false;          // Mode configuració
+bool post_mode_configuracio = false;     // Final configuració
 
 uint8_t serverAddress[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 
-// Text linea 2 que envia MASTER
-uint8_t display_text_1[] = {0, 0, 0}; // Primera linea 0 = TALLY, 1 = CONDUCTOR, 2 = PRODUCTOR
-uint8_t display_text_2[] = {0, 0, 0}; // Segona linea 0 = TALLY, 1 = CONDUCTOR, 2 = PRODUCTOR
+// Text a mostrar
+uint8_t display_text_1; // Primera linea
+uint8_t display_text_2; // Segona linea
 
 //     TEXT_1[] = "12345678""90123456"
 //                          "HH:MM:SS"
@@ -134,8 +141,8 @@ String TEXT_2[] = {"                ",  // 0
                    "  MICRO TANCAT  ",  // 16
                    "* ON AIR LOCAL *",  // 17
                    "<MODE TALLY    >",  // 18
-                   "<MODE PRODUCTOR>",  // 19
-                   "<MODE CONDUCTOR>"}; // 20
+                   "<MODE CONDUCTOR>",  // 19
+                   "<MODE PRODUCTOR>"}; // 20
 
 // Structure to send data
 // Must match the receiver structure
@@ -165,11 +172,11 @@ typedef struct struct_pairing
 typedef struct struct_message_from_master
 {
   uint8_t msgType;
-  uint8_t funcio;      // Identificador de la funcio del tally
-  bool led_roig;       // llum confirmació cond polsador roig
-  bool led_verd;       // llum confirmació cond polsador verd
-  uint8_t color_tally; // Color indexat del tally
-  uint8_t text_2;   // Missatge per mostrar
+  uint8_t funcio;         // Identificador de la funcio del tally
+  bool led_roig[3];       // llum confirmació cond polsador roig
+  bool led_verd[3];       // llum confirmació cond polsador verd
+  uint8_t color_tally[3]; // Color indexat del tally
+  uint8_t text_2[3];      // Missatge per mostrar
 } struct_message_from_master;
 
 // Estrucrtura dades per enviar a master
@@ -186,9 +193,9 @@ typedef struct struct_message_to_master
 typedef struct struct_bateria_info
 {
   uint8_t msgType;
-  uint8_t id;             // Identificador del tally
-  float volts;            // Lectura en volts
-  float percent;          // Percentatge carrega
+  uint8_t id;    // Identificador del tally
+  float volts;   // Lectura en volts
+  float percent; // Percentatge carrega
   // Revisar !!!! unsigned int readingId; // Identificador de lectura
 } struct__bateria_info;
 
@@ -200,8 +207,8 @@ struct_message myData; // data to send
 struct_message inData; // data received
 struct_pairing pairingData;
 struct_message_from_master fromMaster; // dades del master cap al tally
-struct_message_to_master toMaster;  // dades del tally cap al master
-struct_bateria_info bateria_info;   // dades de la bateria cap al master
+struct_message_to_master toMaster;     // dades del tally cap al master
+struct_bateria_info bateria_info;      // dades de la bateria cap al master
 
 enum PairingStatus
 {
@@ -223,6 +230,7 @@ enum MessageType
 MessageType messageType;
 
 // Definim les funcions del Tally
+/* Eliminar aixo?
 enum TipusFuncio
 {
   LLUM,           // Els Tally tan sols s'iluminen amb el color que indica el Master
@@ -230,6 +238,7 @@ enum TipusFuncio
   PRODUCTOR       // Els polsadors tenen a funció del PRODUCTOR
 };
 TipusFuncio funcio_local = LLUM; // Assignem LLUM per decfecte
+*/
 
 #ifdef SAVE_CHANNEL
 int lastChannel;
@@ -307,7 +316,7 @@ void comunicar_polsadors()
 {
   toMaster.msgType = TALLY;
   toMaster.id = BOARD_ID;
-  toMaster.funcio = funcio_local;
+  toMaster.funcio = funcio_local_num;
   toMaster.polsador_roig = POLSADOR_LOCAL_ROIG[1];
   toMaster.polsador_verd = POLSADOR_LOCAL_VERD[1];
 
@@ -336,30 +345,51 @@ void comunicar_bateria()
 
 void llegir_polsadors()
 {
-  POLSADOR_LOCAL_ROIG[1] = !digitalRead(POLSADOR_ROIG_PIN); // Els botons son PULLUP per tant els llegirem al revés
+  POLSADOR_LOCAL_ROIG[1] = !digitalRead(POLSADOR_ROIG_PIN); // Els POLSADOR son PULLUP per tant els llegirem al revés
   POLSADOR_LOCAL_VERD[1] = !digitalRead(POLSADOR_VERD_PIN);
-  // Detecció canvi de polsadors locals
-  if (POLSADOR_LOCAL_ROIG[0] != POLSADOR_LOCAL_ROIG[1])
+  // Detecció canvi de POLSADOR locals
+  if ((POLSADOR_LOCAL_ROIG[0] != POLSADOR_LOCAL_ROIG[1]) && (!debouncing_roig))
   {
-    /// HEM POLSAT EL POLSADOR ROIG
-    LOCAL_CHANGE = true;
-    POLSADOR_LOCAL_ROIG[0] = POLSADOR_LOCAL_ROIG[1];
-    if (debug)
+    /// HEM POLSAT EL POLSADOR ROIG PERO NO VALIDEM
+    last_time_roig = millis();
+    debouncing_roig = true;
+  }
+
+  if ((POLSADOR_LOCAL_ROIG[0] != POLSADOR_LOCAL_ROIG[1]) && (debouncing_roig))
+  {
+    if ((millis() - last_time_roig) > DEBOUNCE_DELAY)
     {
-      Serial.print("Boto local ROIG: ");
-      Serial.println(POLSADOR_LOCAL_ROIG[0]);
+      // HA PASSAT EL TEMPS DE DEBOUNCING
+      LOCAL_CHANGE = true;
+      POLSADOR_LOCAL_ROIG[0] = POLSADOR_LOCAL_ROIG[1];
+      debouncing_roig = false;
+      if (debug)
+      {
+        Serial.print("POLSADOR local ROIG: ");
+        Serial.println(POLSADOR_LOCAL_ROIG[0]);
+      }
     }
   }
 
-  if (POLSADOR_LOCAL_VERD[0] != POLSADOR_LOCAL_VERD[1])
+  if ((POLSADOR_LOCAL_VERD[0] != POLSADOR_LOCAL_VERD[1]) && (!debouncing_verd))
   {
-    /// HEM POLSAT EL POLSADOR VERD
-    LOCAL_CHANGE = true;
-    POLSADOR_LOCAL_VERD[0] = POLSADOR_LOCAL_VERD[1];
-    if (debug)
+    /// HEM POLSAT EL POLSADOR VERD PERO NO VALIDEM
+    last_time_verd = millis();
+    debouncing_verd = true;
+  }
+  if ((POLSADOR_LOCAL_VERD[0] != POLSADOR_LOCAL_VERD[1]) && (debouncing_verd))
+  {
+
+    if ((millis() - last_time_verd) > DEBOUNCE_DELAY)
     {
-      Serial.print("Boto local VERD: ");
-      Serial.println(POLSADOR_LOCAL_VERD[0]);
+      LOCAL_CHANGE = true;
+      POLSADOR_LOCAL_VERD[0] = POLSADOR_LOCAL_VERD[1];
+      debouncing_verd = false;
+      if (debug)
+      {
+        Serial.print("POLSADOR local VERD: ");
+        Serial.println(POLSADOR_LOCAL_VERD[0]);
+      }
     }
   }
 }
@@ -401,21 +431,98 @@ void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status)
   Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
 }
 
-
 void Menu_configuracio()
 {
-  // Desenvolupar aqui el mode configuració
-  // TODO:  Seleccionar entre LLUM, CONDUCTOR i PRODUCTOR
-  // Veure com generem menu
-  /*
-  Si opcio 1
-    funcio_local = LLUM;
-  Si opció 2
-    funcio_local = CONDUCTOR;
-  Si opcio 3
-    funcio_local = PRODUCTOR;
-  */
-  // Comunicar nova funció
+  // local_text_1 = 4; //CONFIG
+  // local_text_2 = 18; //MODE TALLY
+  int select[] = {18, 19, 20};
+  int sel = 0;
+  escriure_display_1(4);
+  post_mode_configuracio = false;
+  while (mode_configuracio)
+  {
+    escriure_display_2(select[sel]); // Dibuixem la opcio
+    /*
+    if (debug)
+    {
+      Serial.print("Sel: ");
+      Serial.println(sel);
+    }
+    */
+    LOCAL_CHANGE = false;
+    llegir_polsadors(); // Llegim els polsadors
+    if (LOCAL_CHANGE)
+    {
+      if (POLSADOR_LOCAL_ROIG[0] && !POLSADOR_LOCAL_VERD[0] && !post_mode_configuracio)
+      {
+        if (sel == 0)
+        {
+          sel = 2;
+        }
+        else
+        {
+          sel = (sel - 1);
+        }
+        if (debug)
+        {
+          Serial.print("Sel: ");
+          Serial.println(sel);
+        }
+      }
+      if (POLSADOR_LOCAL_VERD[0] && !POLSADOR_LOCAL_ROIG[0] && !post_mode_configuracio)
+      {
+        if (sel == 2)
+        {
+          sel = 0;
+        }
+        else
+        {
+          sel = (sel + 1);
+        }
+        if (debug)
+        {
+          Serial.print("Sel: ");
+          Serial.println(sel);
+        }
+      }
+      if (POLSADOR_LOCAL_VERD[0] && !POLSADOR_LOCAL_ROIG[0] && post_mode_configuracio)
+      {
+        post_mode_configuracio = false;
+      }
+      if (!POLSADOR_LOCAL_VERD[0] && POLSADOR_LOCAL_ROIG[0] && post_mode_configuracio)
+      {
+        post_mode_configuracio = false;
+      }
+      if (POLSADOR_LOCAL_ROIG[0] && POLSADOR_LOCAL_VERD[0] && !post_mode_configuracio) // Apretem dos botons per sortir config
+      {
+        temps_post_config = millis();
+        post_mode_configuracio = true;
+        if (debug)
+        {
+          Serial.println("ENTREM EN POST CONFIGURACIO MODE");
+        }
+      }
+    }
+    if (post_mode_configuracio && (millis() >= (temps_config + temps_post_config)))
+    {
+      LED_LOCAL_ROIG = false;
+      LED_LOCAL_VERD = false;
+      escriure_leds();
+      funcio_local_num = sel;
+      escriure_display_1(sel + 1); // Escribim la funció local
+      escriure_display_2(0);       // Borrem linea inferior
+      mode_configuracio = false;
+      if (debug)
+      {
+        Serial.println("SORTIM CONFIGURACIO MODE");
+        Serial.println("APAGUEM LEDS");
+        Serial.print("Sel: ");
+        Serial.println(sel);
+      }
+    }
+  }
+  LOCAL_CHANGE = false;
+  post_mode_configuracio = false;
 }
 
 void detectar_mode_configuracio()
@@ -426,25 +533,30 @@ void detectar_mode_configuracio()
     {
       // Tenim els dos polsadors apretats i no estem en pre_mode_configuracio
       // Entrarem al mode CONFIG
-      temps_set_config = millis();      // Llegim el temps actual per entrar a mode config
-      pre_mode_configuracio = true;     //Situem el flag en pre-mode-confi
+      temps_set_config = millis();  // Llegim el temps actual per entrar a mode config
+      pre_mode_configuracio = true; // Situem el flag en pre-mode-confi
       if (debug)
       {
-        Serial.print("PRE CONFIGURACIO MODE");
+        Serial.println("PRE CONFIGURACIO MODE");
       }
     }
-
+    if (POLSADOR_LOCAL_ROIG[0] && POLSADOR_LOCAL_VERD[0] && (millis() >= (temps_config + temps_set_config)))
+    {
+      LED_LOCAL_ROIG = true;
+      LED_LOCAL_VERD = true;
+      escriure_leds();
+    }
     if ((!POLSADOR_LOCAL_ROIG[0] || !POLSADOR_LOCAL_VERD[0]) && pre_mode_configuracio)
-    { // Si deixem de pulsar botons i estavem en pre_mode_de_configuracio
+    { // Si deixem de pulsar polsadors i estavem en pre_mode_de_configuracio
       if ((millis()) >= (temps_config + temps_set_config))
       {                                // Si ha pasat el temps d'activació
         mode_configuracio = true;      // Entrem en mode configuracio
         pre_mode_configuracio = false; // Sortim del mode preconfiguracio
+        LOCAL_CHANGE = false;
         if (debug)
         {
-          Serial.print("CONFIGURACIO MODE");
+          Serial.println("CONFIGURACIO MODE");
         }
-        // TODO: Cridar mode config
         Menu_configuracio();
       }
       else
@@ -453,7 +565,7 @@ void detectar_mode_configuracio()
         mode_configuracio = false;     // Cancelem la configuracio
         if (debug)
         {
-          Serial.print("CANCELEM CONFIGURACIO MODE");
+          Serial.println("CANCELEM CONFIGURACIO MODE");
         }
       }
     }
@@ -468,7 +580,7 @@ void OnDataRecv(const uint8_t *mac_addr, const uint8_t *incomingData, int len)
   Serial.print("data size = ");
   Serial.println(sizeof(incomingData));
   uint8_t type = incomingData[0];
-  if (!mode_configuracio) //Si no estem en mode configuració
+  if (!mode_configuracio) // Si no estem en mode configuració
   {
     switch (type)
     {
@@ -499,25 +611,20 @@ void OnDataRecv(const uint8_t *mac_addr, const uint8_t *incomingData, int len)
       memcpy(&fromMaster, incomingData, sizeof(fromMaster));
       if (debug)
       {
-        Serial.print("Funció  = ");
-        Serial.println(fromMaster.funcio);
         Serial.print("Led roig = ");
-        Serial.println(fromMaster.led_roig);
+        Serial.println(fromMaster.led_roig[funcio_local_num]);
         Serial.print("Led verd= ");
-        Serial.println(fromMaster.led_verd);
+        Serial.println(fromMaster.led_verd[funcio_local_num]);
         Serial.print("Color tally  = ");
-        Serial.println(fromMaster.color_tally);
+        Serial.println(fromMaster.color_tally[funcio_local_num]);
         Serial.print("Missatge linea 2 = ");
-        Serial.println(fromMaster.text_2);
+        Serial.println(fromMaster.text_2[funcio_local_num]);
       }
-      if (fromMaster.funcio = funcio_local)
-      {
-        LED_LOCAL_ROIG = fromMaster.led_roig; // Carreguem el valor rebut al LED roig
-        LED_LOCAL_VERD = fromMaster.led_verd; // Carreguem el valor rebut al LED verd
-        escriure_leds();   // CRIDAR SUBRUTINA ESCRIURE LED
-        escriure_matrix(fromMaster.color_tally); // CRIDAR SUBRUTINA ESCRIURE TALLY
-        escriure_display_2(fromMaster.text_2);    // CRIDAR SUBRUTINA ESCRIURE TEXT
-      }
+      LED_LOCAL_ROIG = fromMaster.led_roig[funcio_local_num];    // Carreguem el valor rebut al LED roig
+      LED_LOCAL_VERD = fromMaster.led_verd[funcio_local_num];    // Carreguem el valor rebut al LED verd
+      escriure_leds();                                           // CRIDAR SUBRUTINA ESCRIURE LED
+      escriure_matrix(fromMaster.color_tally[funcio_local_num]); // CRIDAR SUBRUTINA ESCRIURE TALLY
+      escriure_display_2(fromMaster.text_2[funcio_local_num]);   // CRIDAR SUBRUTINA ESCRIURE TEXT
       break;
 
     case CLOCK: // Missatge sincronització hora
@@ -608,12 +715,12 @@ void setup()
   // Initialize Serial Monitor
   Serial.begin(115200);
 
-  lcd.init(); // Inicialitzem lcd
+  lcd.init();      // Inicialitzem lcd
   lcd.backlight(); // Arrenquem la llum de fons lcd
-  lcd.clear(); // Esborrem la pantalla
+  lcd.clear();     // Esborrem la pantalla
 
   Serial.println();
-  
+
   pinMode(LED_BUILTIN, OUTPUT);
 
   // Configurem els pins POLSADORNS/LEDS
@@ -621,18 +728,18 @@ void setup()
   pinMode(POLSADOR_VERD_PIN, INPUT_PULLUP);
   pinMode(LED_ROIG_PIN, OUTPUT);
   pinMode(LED_VERD_PIN, OUTPUT);
-  
+
   Serial.println("TALLY SLAVE");
   Serial.print("Versio: ");
   Serial.println(VERSIO);
   Serial.print("Client Board MAC Address:  ");
   Serial.println(WiFi.macAddress());
 
-  lcd.setCursor(0,0); // Situem cursor primer caracter, primera linea
+  lcd.setCursor(0, 0); // Situem cursor primer caracter, primera linea
   lcd.print("TALLY SLAVE");
-  lcd.setCursor(0,1); // Primer caracter, segona linea
+  lcd.setCursor(0, 1); // Primer caracter, segona linea
   lcd.print("Versio: ");
-  lcd.setCursor(9,1); // Caracter 9, segona linea
+  lcd.setCursor(9, 1); // Caracter 9, segona linea
   lcd.print(VERSIO);
 
   WiFi.mode(WIFI_STA);
@@ -641,7 +748,11 @@ void setup()
 
   // Esborrem llum
   llum.clear();
-
+  lcd.clear();
+  escriure_display_1(funcio_local_num + 1);
+  last_time_roig = millis(); // Debouncer polsador
+  last_time_verd = millis(); // Debouncer polsador
+  LOCAL_CHANGE = false;
 #ifdef SAVE_CHANNEL
   EEPROM.begin(10);
   lastChannel = EEPROM.read(0);
@@ -664,18 +775,17 @@ void loop()
     {
       // Save the last time a new reading was published
       previousMillis = currentMillis;
-      readBateriaVolts();           // Llegim bateria volts
-      readBateriaPercent();         // Llegim percentatge bateria
-      comunicar_bateria();          // Comuniqem valor bateria
+      readBateriaVolts();   // Llegim bateria volts
+      readBateriaPercent(); // Llegim percentatge bateria
+      comunicar_bateria();  // Comuniqem valor bateria
     }
-    LOCAL_CHANGE = false;
-    if (!mode_configuracio)         // Si no estem en mode configuracio
+    if (!mode_configuracio) // Si no estem en mode configuracio
     {
-      llegir_botons();              // Funcio per llegir valors
-      detectar_mode_configuracio(); // Mirem si estan els dos apretats per CONFIG
+      llegir_polsadors();              // Funcio per llegir valors  
       if (LOCAL_CHANGE)
-      {
-        comunicar_polsadors();      // Funció per comunicar valors
+      { 
+        detectar_mode_configuracio(); // Mirem si estan els dos apretats per CONFIG
+        comunicar_polsadors(); // Funció per comunicar valors
       }
     }
   }
