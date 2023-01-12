@@ -8,10 +8,7 @@
 /*
 TODO
 
-Fer menu selecció funció local
-Implentar Display
 Implentar hora
-Implentar mostrar texete
 Lectura valors reals bateria
 
 */
@@ -650,6 +647,7 @@ void OnDataRecv(const uint8_t *mac_addr, const uint8_t *incomingData, int len)
         EEPROM.commit();
 #endif
         pairingStatus = PAIR_PAIRED; // set the pairing status
+        comunicar_polsadors(); // Comuniquem quina funcio te el SLAVE
       }
       break;
     }
@@ -768,7 +766,7 @@ void setup()
 
 void loop()
 {
-  if (autoPairing() == PAIR_PAIRED)
+  if (pairingStatus == PAIR_PAIRED)
   {
     unsigned long currentMillis = millis();
     if (currentMillis - previousMillis >= interval)
@@ -779,6 +777,7 @@ void loop()
       readBateriaPercent(); // Llegim percentatge bateria
       comunicar_bateria();  // Comuniqem valor bateria
     }
+    if (pairingStatus == 'PAIR_PAIRED'){
     if (!mode_configuracio) // Si no estem en mode configuracio
     {
       llegir_polsadors();              // Funcio per llegir valors  
@@ -787,6 +786,14 @@ void loop()
         detectar_mode_configuracio(); // Mirem si estan els dos apretats per CONFIG
         comunicar_polsadors(); // Funció per comunicar valors
       }
+    }
+    } else {
+      escriure_display_1(5); //Escrivim NO_LINK
+      LED_LOCAL_ROIG = false;
+      LED_LOCAL_VERD = false;
+      escriure_leds(); //Apaguem els leds botons
+      escriure_matrix(0); //Color negre
+      pairingStatus = PAIR_REQUEST; // Demanerm aparellar
     }
   }
 }
