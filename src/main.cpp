@@ -10,6 +10,7 @@ TODO
 
 Implentar hora
 Lectura valors reals bateria
+Eliminar comunicació temperatura
 
 */
 
