@@ -648,6 +648,7 @@ void OnDataRecv(const uint8_t *mac_addr, const uint8_t *incomingData, int len)
 #endif
         pairingStatus = PAIR_PAIRED; // set the pairing status
         comunicar_polsadors(); // Comuniquem quina funcio te el SLAVE
+        escriure_display_1((funcio_local_num + 1)); //Mostrem funcio local
       }
       break;
     }
