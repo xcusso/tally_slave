@@ -63,15 +63,16 @@ bool debug = true;
 // Declarem neopixels
 Adafruit_NeoPixel llum(LED_COUNT, MATRIX_PIN, NEO_GRB + NEO_KHZ800);
 
-// Definim els colors GRB
+// Definim els colors RGB
 const uint8_t COLOR[][6] = {{0, 0, 0},        // 0- NEGRE
-                            {0, 255, 0},      // 1- ROIG
+                            {255, 0, 0},      // 1- ROIG
                             {0, 0, 255},      // 2- BLAU
-                            {0, 255, 255},    // 3- CEL
-                            {255, 0, 0},      // 4- VERD
-                            {80, 255, 0},    // 5- GROC
-                            {25, 255, 0},    // 6- TARONJA
-                            {200, 255, 125}}; // 7- BLANC
+                            {255, 0, 255},    // 3- MAGENTA
+                            {0, 255, 0},      // 4- VERD
+                            {255, 80, 0},    // 5- GROC
+                            {255, 25, 0},    // 6- TARONJA
+                            {255, 200, 125}}; // 7- BLANC
+
 
 uint8_t funcio_local_num = 0; // 0 = TALLY, 1 = CONDUCTOR, 2 = PRODUCTOR
 uint8_t color_matrix;
@@ -538,12 +539,7 @@ void detectar_mode_configuracio()
         Serial.println("PRE CONFIGURACIO MODE");
       }
     }
-    if (POLSADOR_LOCAL_ROIG[0] && POLSADOR_LOCAL_VERD[0] && (millis() >= (temps_config + temps_set_config)))
-    {
-      LED_LOCAL_ROIG = true;
-      LED_LOCAL_VERD = true;
-      escriure_leds();
-    }
+    
     if ((!POLSADOR_LOCAL_ROIG[0] || !POLSADOR_LOCAL_VERD[0]) && pre_mode_configuracio)
     { // Si deixem de pulsar polsadors i estavem en pre_mode_de_configuracio
       if ((millis()) >= (temps_config + temps_set_config))
@@ -568,6 +564,12 @@ void detectar_mode_configuracio()
       }
     }
   }
+  if (POLSADOR_LOCAL_ROIG[0] && POLSADOR_LOCAL_VERD[0] && (millis() >= (temps_config + temps_set_config)))
+    {
+      LED_LOCAL_ROIG = true;
+      LED_LOCAL_VERD = true;
+      escriure_leds();
+    }
 }
 
 void OnDataRecv(const uint8_t *mac_addr, const uint8_t *incomingData, int len)
@@ -782,9 +784,9 @@ void loop()
     if (!mode_configuracio) // Si no estem en mode configuracio
     {
       llegir_polsadors(); // Funcio per llegir valors
+      detectar_mode_configuracio(); // Mirem si estan els dos apretats per CONFIG
       if (LOCAL_CHANGE)
       {
-        detectar_mode_configuracio(); // Mirem si estan els dos apretats per CONFIG
         comunicar_polsadors();        // Funció per comunicar valors
       }
     }
