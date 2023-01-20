@@ -65,14 +65,14 @@ bool debug = true;
 Adafruit_NeoPixel llum(LED_COUNT, MATRIX_PIN, NEO_GRB + NEO_KHZ800);
 
 // Definim els colors RGB
-const uint8_t COLOR[][6] = {{0, 0, 0},        // 0- NEGRE
-                            {255, 0, 0},      // 1- ROIG
-                            {0, 0, 255},      // 2- BLAU
-                            {255, 0, 255},    // 3- MAGENTA
-                            {0, 255, 0},      // 4- VERD
-                            {255, 80, 0},     // 5- GROC
-                            {255, 25, 0},     // 6- TARONJA
-                            {255, 200, 125}}; // 7- BLANC
+const uint8_t COLOR[8][3] = {{0, 0, 0},        // 0- NEGRE
+                             {255, 0, 0},      // 1- ROIG
+                             {0, 0, 255},      // 2- BLAU
+                             {255, 0, 255},    // 3- MAGENTA
+                             {0, 255, 0},      // 4- VERD
+                             {255, 80, 0},     // 5- GROC
+                             {255, 25, 0},     // 6- TARONJA
+                             {255, 200, 125}}; // 7- BLANC
 
 uint8_t funcio_local = 0;           // 0 = TALLY, 1 = CONDUCTOR, 2 = PRODUCTOR
 uint8_t color_matrix[] = {0, 0, 0}; // Primera fila mode 1 Segona fila mode 2: 0 = TALLY, 1 = CONDUCTOR, 2 = PRODUCTOR
@@ -303,6 +303,20 @@ void escriure_display_clock()
   }
 }
 
+// Llum arrencada
+void llum_rgb()
+{
+  llum.setPixelColor(0, llum.Color(0, 0, 10));
+  llum.setPixelColor(1, llum.Color(0, 0, 25));
+  llum.setPixelColor(2, llum.Color(0, 0, 100));
+  llum.setPixelColor(3, llum.Color(0, 0, 255));
+  llum.setPixelColor(4, llum.Color(0, 0, 255));
+  llum.setPixelColor(5, llum.Color(0, 0, 100));
+  llum.setPixelColor(6, llum.Color(0, 0, 25));
+  llum.setPixelColor(7, llum.Color(0, 0, 10));
+  llum.show();
+}
+
 // Posar llum a un color
 void escriure_matrix(uint8_t color)
 {
@@ -312,10 +326,10 @@ void escriure_matrix(uint8_t color)
   uint8_t R = COLOR[color][0];
   for (int i = 0; i < LED_COUNT; i++)
   {
-    llum.setPixelColor(i, llum.Color(G, B, R));
+    llum.setPixelColor(i, llum.Color(R, G, B));
   }
   llum.show();
-  if (debug)
+  /*if (debug)
   {
     Serial.print("Color: ");
     Serial.println(color);
@@ -326,6 +340,7 @@ void escriure_matrix(uint8_t color)
     Serial.print("B: ");
     Serial.println(B);
   }
+  */
 }
 
 void comunicar_polsadors()
@@ -360,6 +375,7 @@ void comunicar_bateria()
 
 void llegir_polsadors()
 {
+  LOCAL_CHANGE = false;
   POLSADOR_LOCAL_ROIG[1] = !digitalRead(POLSADOR_ROIG_PIN); // Els POLSADOR son PULLUP per tant els llegirem al revés
   POLSADOR_LOCAL_VERD[1] = !digitalRead(POLSADOR_VERD_PIN);
   // Detecció canvi de POLSADOR locals
@@ -446,7 +462,7 @@ void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status)
 {
   Serial.print("\r\nLast Packet Send Status:\t");
   Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
-  if (!ESP_NOW_SEND_SUCCESS)
+  if (status != ESP_NOW_SEND_SUCCESS)
   {
     escriure_display_1(5); // NO LINK!!
     escriure_matrix(0);    // NEGRE Apagar llum!
@@ -739,7 +755,8 @@ PairingStatus autoPairing()
     break;
 
   case PAIR_PAIRED:
-    escriure_display_1(funcio_local + 1); // Dibuixem funcio local
+   // escriure_display_1(funcio_local + 1); // Dibuixem funcio local
+    // pairingStatus = PAIR_PAIRED;
     break;
   }
   return pairingStatus;
@@ -749,7 +766,7 @@ void setup()
 {
   // Initialize Serial Monitor
   Serial.begin(115200);
-
+  llum_rgb();      // LLum inici
   lcd.init();      // Inicialitzem lcd
   lcd.backlight(); // Arrenquem la llum de fons lcd
   lcd.clear();     // Esborrem la pantalla
@@ -803,7 +820,7 @@ void setup()
 
 void loop()
 {
-  if (pairingStatus == PAIR_PAIRED)
+  if (autoPairing() == PAIR_PAIRED)
   {
     unsigned long currentMillis = millis();
     if (currentMillis - previousMillis >= interval)
@@ -814,6 +831,9 @@ void loop()
       readBateriaPercent(); // Llegim percentatge bateria
       comunicar_bateria();  // Comuniqem valor bateria
     }
+  }
+  if (pairingStatus == PAIR_PAIRED)
+  {
     if (!mode_configuracio) // Si no estem en mode configuracio
     {
       llegir_polsadors();           // Funcio per llegir valors
@@ -823,9 +843,9 @@ void loop()
         comunicar_polsadors(); // Funció per comunicar valors
       }
     }
-    escriure_display_clock(); // Dibuixem la hora
+    //escriure_display_clock(); // Dibuixem la hora
   }
-  else
+  /* else
   {
     escriure_display_1(5); // Escrivim NO_LINK
     LED_LOCAL_ROIG = false;
@@ -833,5 +853,11 @@ void loop()
     escriure_leds();              // Apaguem els leds botons
     escriure_matrix(0);           // Color negre
     pairingStatus = PAIR_REQUEST; // Demanerm aparellar
+    if (debug)
+    {
+      Serial.println("No paired");
+    }
+    
   }
+  */
 }
