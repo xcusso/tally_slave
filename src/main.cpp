@@ -29,7 +29,8 @@ Lectura valors reals bateria
 #include <EEPROM.h>
 #include <Adafruit_NeoPixel.h> //Control neopixels
 #include <LiquidCrystal_I2C.h> //Control display cristall liquid
-#include "time.h"              //Donar hora real
+#include <time.h>             //Donar hora real
+#include <AutoConnect.h>      // Per fer menu autoconnexió
 
 #define VERSIO "S1.2" // Versió del software
 
