@@ -442,9 +442,6 @@ void addPeer(const uint8_t *mac_addr, uint8_t chan)
   memcpy(peer.peer_addr, mac_addr, sizeof(uint8_t[6]));
   if (esp_now_add_peer(&peer) != ESP_OK)
   {
-    escriure_display_1(5); // Escrivim NO_LINK
-    escriure_display_2(1); // Escrivim FORA DE SERVEI
-    escriure_matrix(0); // Color negre
     Serial.println("Failed to add peer");
     return;
   }
@@ -463,12 +460,6 @@ void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status)
 {
   Serial.print("\r\nLast Packet Send Status:\t");
   Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
-  if (status != ESP_NOW_SEND_SUCCESS)
-  {
-    escriure_display_1(5); // Escrivim NO_LINK
-    escriure_display_2(1); // Escrivim FORA DE SERVEI
-    escriure_matrix(0); // Color negre
-  }
 }
 
 void Menu_configuracio()
@@ -668,7 +659,7 @@ void OnDataRecv(const uint8_t *mac_addr, const uint8_t *incomingData, int len)
       }
       LED_LOCAL_ROIG = fromMaster.led_roig[funcio_local];    // Carreguem el valor rebut al LED roig
       LED_LOCAL_VERD = fromMaster.led_verd[funcio_local];    // Carreguem el valor rebut al LED verd
-      escriure_display_1(funcio_local + 1);                  // Per si ha quedat en versio no LINK
+      escriure_display_1((funcio_local + 1));                  // Per si ha quedat en versio no LINK
       escriure_leds();                                       // CRIDAR SUBRUTINA ESCRIURE LED
       escriure_matrix(fromMaster.color_tally[funcio_local]); // CRIDAR SUBRUTINA ESCRIURE TALLY
       escriure_display_2(fromMaster.text_2[funcio_local]);   // CRIDAR SUBRUTINA ESCRIURE TEXT
@@ -676,7 +667,7 @@ void OnDataRecv(const uint8_t *mac_addr, const uint8_t *incomingData, int len)
 
     case CLOCK: // Missatge sincronització hora
       memcpy(&clock_fromMaster, incomingData, sizeof(clock_fromMaster));
-      escriure_display_1(funcio_local + 1);    // Per si ha quedat en versio no LINK
+      //escriure_display_1(funcio_local + 1);    // Per si ha quedat en versio no LINK
       timeinfo = clock_fromMaster.temps_rebut; // Li passem el valor a clock
       No_time = false;
       break;
@@ -756,7 +747,7 @@ PairingStatus autoPairing()
     break;
 
   case PAIR_PAIRED:
-    escriure_display_1(funcio_local + 1); // Dibuixem funcio local
+    escriure_display_1((funcio_local + 1)); // Dibuixem funcio local
     // pairingStatus = PAIR_PAIRED;
     break;
   }
@@ -802,7 +793,7 @@ void setup()
   // Esborrem llum
   llum.clear();
   lcd.clear();
-  escriure_display_1(funcio_local + 1);
+  escriure_display_1((funcio_local + 1));
   last_time_roig = millis(); // Debouncer polsador
   last_time_verd = millis(); // Debouncer polsador
   LOCAL_CHANGE = false;
