@@ -29,8 +29,7 @@ Lectura valors reals bateria
 #include <EEPROM.h>
 #include <Adafruit_NeoPixel.h> //Control neopixels
 #include <LiquidCrystal_I2C.h> //Control display cristall liquid
-#include <time.h>             //Donar hora real
-#include <AutoConnect.h>      // Per fer menu autoconnexió
+#include <time.h>              //Donar hora real
 
 #define VERSIO "S1.2" // Versió del software
 
@@ -443,8 +442,9 @@ void addPeer(const uint8_t *mac_addr, uint8_t chan)
   memcpy(peer.peer_addr, mac_addr, sizeof(uint8_t[6]));
   if (esp_now_add_peer(&peer) != ESP_OK)
   {
-    escriure_display_1(5); // NO LINK!!
-    escriure_matrix(0);    // NEGRE Apagar llum!
+    escriure_display_1(5); // Escrivim NO_LINK
+    escriure_display_2(1); // Escrivim FORA DE SERVEI
+    escriure_matrix(0); // Color negre
     Serial.println("Failed to add peer");
     return;
   }
@@ -465,8 +465,9 @@ void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status)
   Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
   if (status != ESP_NOW_SEND_SUCCESS)
   {
-    escriure_display_1(5); // NO LINK!!
-    escriure_matrix(0);    // NEGRE Apagar llum!
+    escriure_display_1(5); // Escrivim NO_LINK
+    escriure_display_2(1); // Escrivim FORA DE SERVEI
+    escriure_matrix(0); // Color negre
   }
 }
 
@@ -677,6 +678,7 @@ void OnDataRecv(const uint8_t *mac_addr, const uint8_t *incomingData, int len)
       memcpy(&clock_fromMaster, incomingData, sizeof(clock_fromMaster));
       escriure_display_1(funcio_local + 1);    // Per si ha quedat en versio no LINK
       timeinfo = clock_fromMaster.temps_rebut; // Li passem el valor a clock
+      No_time = false;
       break;
 
     case PAIRING: // we received pairing data from server
@@ -718,8 +720,6 @@ PairingStatus autoPairing()
     ESP_ERROR_CHECK(esp_wifi_set_channel(channel, WIFI_SECOND_CHAN_NONE));
     if (esp_now_init() != ESP_OK)
     {
-      escriure_display_1(5); // NO LINK!!
-      escriure_matrix(0);    // NEGRE Apagar llum!
       Serial.println("Error initializing ESP-NOW");
     }
 
@@ -742,7 +742,7 @@ PairingStatus autoPairing()
   case PAIR_REQUESTED:
     // time out to allow receiving response from server
     currentMillis = millis();
-    if (currentMillis - previousMillis > 250)
+    if (currentMillis - previousMillis > 250) // Original 250
     {
       previousMillis = currentMillis;
       // time out expired,  try next channel
@@ -756,7 +756,7 @@ PairingStatus autoPairing()
     break;
 
   case PAIR_PAIRED:
-   // escriure_display_1(funcio_local + 1); // Dibuixem funcio local
+    escriure_display_1(funcio_local + 1); // Dibuixem funcio local
     // pairingStatus = PAIR_PAIRED;
     break;
   }
@@ -820,7 +820,9 @@ void setup()
 }
 
 void loop()
-{
+{ 
+  llegir_polsadors();           // Funcio per llegir valors
+  detectar_mode_configuracio(); // Mirem si estan els dos apretats per CONFIG
   if (autoPairing() == PAIR_PAIRED)
   {
     unsigned long currentMillis = millis();
@@ -832,33 +834,23 @@ void loop()
       readBateriaPercent(); // Llegim percentatge bateria
       comunicar_bateria();  // Comuniqem valor bateria
     }
-  }
-  if (pairingStatus == PAIR_PAIRED)
-  {
     if (!mode_configuracio) // Si no estem en mode configuracio
     {
-      llegir_polsadors();           // Funcio per llegir valors
-      detectar_mode_configuracio(); // Mirem si estan els dos apretats per CONFIG
       if (LOCAL_CHANGE)
       {
         comunicar_polsadors(); // Funció per comunicar valors
       }
+      //escriure_display_clock(); // Dibuixem hora
     }
-    //escriure_display_clock(); // Dibuixem la hora
   }
-  /* else
+  else
   {
     escriure_display_1(5); // Escrivim NO_LINK
-    LED_LOCAL_ROIG = false;
-    LED_LOCAL_VERD = false;
-    escriure_leds();              // Apaguem els leds botons
-    escriure_matrix(0);           // Color negre
-    pairingStatus = PAIR_REQUEST; // Demanerm aparellar
+    escriure_display_2(1); // Escrivim FORA DE SERVEI
+    escriure_matrix(0); // Color negre
     if (debug)
     {
-      Serial.println("No paired");
+      Serial.println("No emparellat");
     }
-    
   }
-  */
 }
