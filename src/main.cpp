@@ -9,9 +9,6 @@
 TODO
 
 Implentar hora
-Lectura valors reals bateria
-
-
 */
 
 /*
@@ -22,7 +19,6 @@ Lectura valors reals bateria
   Based on JC Servaye example: https://github.com/Servayejc/esp_now_sender/
 */
 #include <Arduino.h>
-#include <Arduino.h>
 #include <esp_now.h>
 #include <esp_wifi.h>
 #include <WiFi.h>
@@ -31,7 +27,7 @@ Lectura valors reals bateria
 #include <LiquidCrystal_I2C.h> //Control display cristall liquid
 #include <time.h>              //Donar hora real
 
-#define VERSIO "S1.2" // Versió del software
+#define VERSIO "S1.3" // Versió del software
 
 // Bool per veure missatges de debug
 bool debug = true;
@@ -60,6 +56,9 @@ bool debug = true;
 
 // Define sensor battery
 #define BATTERY_PIN 36
+#define FULL_VOLTAGE 4.2
+#define EMPTY_VOLTAGE 3.3
+#define NUM_SAMPLES 10
 
 // Declarem neopixels
 Adafruit_NeoPixel llum(LED_COUNT, MATRIX_PIN, NEO_GRB + NEO_KHZ800);
@@ -97,7 +96,10 @@ bool POLSADOR_LOCAL_VERD[] = {false, false};
 // Valor dels leds (dels polsadors)
 bool LED_LOCAL_ROIG = false;
 bool LED_LOCAL_VERD = false;
-uint16_t BATTERY_LOCAL_READ[] = {0, 0};
+//Valor bateria
+float bat_local_volt = 0;      // Variable per lectura local de la bateria volts
+uint8_t bat_local_percent = 0; // Variable per lectura local de la bateria percntil
+
 // Variables de gestió
 bool LOCAL_CHANGE = false; // Per saber si alguna cosa local ha canviat
 
@@ -108,6 +110,10 @@ bool pre_mode_configuracio = false;      // Inici mode configuració
 bool mode_configuracio = false;          // Mode configuració
 bool post_mode_configuracio = false;     // Final configuració
 
+// Temps per rutines lectura bateria
+unsigned long ultima_lectura_bat;
+const unsigned long interval_lectura_bat = 300000; //Cada 5 minuts - ajustar si cal
+
 bool No_time = true; // No tenim sincro amb hora
 
 uint8_t serverAddress[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
@@ -115,6 +121,69 @@ uint8_t serverAddress[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 // Text a mostrar
 uint8_t display_text_1; // Primera linea
 uint8_t display_text_2; // Segona linea
+
+// Icones bateria
+byte baticon[6][8] = {
+    {
+        B01110, // 0%
+        B11111,
+        B10001,
+        B10001,
+        B10001,
+        B10001,
+        B10001,
+        B11111,
+    },
+    {
+        B01110, // 20%
+        B11111,
+        B10001,
+        B10001,
+        B10001,
+        B10001,
+        B11111,
+        B11111,
+    },
+    {
+        B01110, // 40%
+        B11111,
+        B10001,
+        B10001,
+        B10001,
+        B11111,
+        B11111,
+        B11111,
+    },
+    {
+        B01110, // 60%
+        B11111,
+        B10001,
+        B10001,
+        B11111,
+        B11111,
+        B11111,
+        B11111,
+    },
+    {
+        B01110, // 80%
+        B11111,
+        B10001,
+        B11111,
+        B11111,
+        B11111,
+        B11111,
+        B11111,
+    },
+    {
+        B01110, //100%
+        B11111,
+        B11111,
+        B11111,
+        B11111,
+        B11111,
+        B11111,
+        B11111,
+    }};
 
 //     TEXT_1[] = "12345678""90123456"
 //                          "HH:MM:SS"
@@ -147,7 +216,8 @@ String TEXT_2[] = {"                ",  // 0
                    "* ON AIR LOCAL *",  // 17
                    "<MODE TALLY    >",  // 18
                    "<MODE CONDUCTOR>",  // 19
-                   "<MODE PRODUCTOR>"}; // 20
+                   "<MODE PRODUCTOR>",  // 20
+                   " BATERIA BAIXA! "}; // 21
 
 // Structure to send data
 // Must match the receiver structure
@@ -245,30 +315,27 @@ int lastChannel;
 #endif
 int channel = 1;
 
-// simulate batery level
-float volt = 0;
-float percent = 0;
-
 unsigned long currentMillis = millis();
 unsigned long previousMillis = 0; // Stores last time batery was published
 const long interval = 10000;      // Interval at which to publish bateria sensor readings
 unsigned long start;              // used to measure Pairing time
 unsigned int readingId = 0;
 
-// Simulem lectura de bateria
-// TODO Unificar lectura volts i convertir a nivells
-float readBateriaVolts()
+// lectura bateria
+// Bateria 4,2V - 3,2V si posem dos diodes en serie ens queda en 4.2 - 1.4 = 2,8 Max
+// 3,2V -1,4 = 1,8 Min
+
+void llegir_bateria()
 {
-  volt = random(0, 40); // = analogRead(BATTERY_PIN)
-  return volt;
+  bat_local_volt = 0;
+  for (int i = 0; i < NUM_SAMPLES; i++) {
+    bat_local_volt += analogRead(BATTERY_PIN) * 3.3 / 4096;
+  }
+  bat_local_volt /= NUM_SAMPLES; //Fem la mitjana de les lectures
+  bat_local_volt = bat_local_volt + 1.4; //Compensem la caiguda de tensió de 2 diodes en serie 0.7 + 0.7V
+  bat_local_percent = 100 * (bat_local_volt - EMPTY_VOLTAGE) / (FULL_VOLTAGE - EMPTY_VOLTAGE);
 }
 
-// Simulem lectura percentatge bateria
-uint8_t readBateriaPercent()
-{
-  percent = random(0, 100);
-  return percent;
-}
 
 void escriure_display_1(uint8_t txt1)
 {
@@ -280,25 +347,59 @@ void escriure_display_2(uint8_t txt2)
   lcd.setCursor(0, 1); // Primer caracter, segona linea
   lcd.print(TEXT_2[txt2]);
 }
+// Dibuixem bateria en Display
+void escriure_display_bateria(uint8_t bat_icona_percent)
+{
+  lcd.setCursor(15, 0); // Ultimr caracter, primera linea
+  lcd.write((byte)bat_icona_percent);
+}
+// Seleccionem icona nivell bateria
+void mostrar_bat()
+{
+  if (bat_local_percent < 10)
+  {
+    escriure_display_bateria(0);
+  }
+  if (bat_local_percent > 10 && bat_local_percent < 20)
+  {
+    escriure_display_bateria(1);
+  }
+  if (bat_local_percent > 20 && bat_local_percent < 40)
+  {
+    escriure_display_bateria(2);
+  }
+  if (bat_local_percent > 40 && bat_local_percent < 60)
+  {
+    escriure_display_bateria(3);
+  }
+  if (bat_local_percent > 60 && bat_local_percent < 80)
+  {
+    escriure_display_bateria(4);
+  }
+  if (bat_local_percent > 80)
+  {
+    escriure_display_bateria(5);
+  }
+}
 
 void escriure_display_clock()
 {
   if (No_time)
   {
-    lcd.setCursor(8, 0);   // Caracter 8, primera linea
+    lcd.setCursor(7, 0);   // Caracter 8, primera linea
     lcd.print("        "); //
   }
   else
   {
-    lcd.setCursor(8, 0); // Caracter 8, primera linea
+    lcd.setCursor(7, 0); // Caracter 7, primera linea
     lcd.print(&timeinfo, "%H");
+    lcd.setCursor(9, 0); // Caracter 9, primera linea
+    lcd.print(":");
     lcd.setCursor(10, 0); // Caracter 10, primera linea
-    lcd.print(":");
-    lcd.setCursor(11, 0); // Caracter 11, primera linea
     lcd.print(&timeinfo, "%M");
-    lcd.setCursor(13, 0); // Caracter 13, primera linea
+    lcd.setCursor(12, 0); // Caracter 12, primera linea
     lcd.print(":");
-    lcd.setCursor(14, 0); // Caracter 14, primera linea
+    lcd.setCursor(13, 0); // Caracter 13, primera linea
     lcd.print(&timeinfo, "%S");
   }
 }
@@ -368,8 +469,8 @@ void comunicar_bateria()
   // Set values to send
   bat_info.msgType = BATERIA;
   bat_info.id = BOARD_ID;
-  bat_info.bateria_volts = readBateriaVolts();
-  bat_info.bateria_percent = readBateriaPercent();
+  bat_info.bateria_volts = bat_local_volt;
+  bat_info.bateria_percent = bat_local_percent;
   esp_err_t result = esp_now_send(serverAddress, (uint8_t *)&bat_info, sizeof(bat_info));
 }
 
@@ -761,6 +862,13 @@ void setup()
   llum_rgb();      // LLum inici
   lcd.init();      // Inicialitzem lcd
   lcd.backlight(); // Arrenquem la llum de fons lcd
+  // Creem els icons de la bateria
+  lcd.createChar(0,baticon[0]); //0%
+  lcd.createChar(1,baticon[1]); //20%
+  lcd.createChar(2,baticon[2]); //40%
+  lcd.createChar(3,baticon[3]); //60%
+  lcd.createChar(4,baticon[4]); //80%
+  lcd.createChar(5,baticon[5]); //100%
   lcd.clear();     // Esborrem la pantalla
 
   Serial.println();
@@ -793,7 +901,9 @@ void setup()
   // Esborrem llum
   llum.clear();
   lcd.clear();
-  escriure_display_1((funcio_local + 1));
+  escriure_display_1((funcio_local + 1)); //Funcio local
+  llegir_bateria(); // Mirem la bateria
+  mostrar_bat(); // Dibuixem nivell bateria
   last_time_roig = millis(); // Debouncer polsador
   last_time_verd = millis(); // Debouncer polsador
   LOCAL_CHANGE = false;
@@ -814,24 +924,23 @@ void loop()
 { 
   llegir_polsadors();           // Funcio per llegir valors
   detectar_mode_configuracio(); // Mirem si estan els dos apretats per CONFIG
+  // Llegim bateria cada interval
+  if ((millis() - ultima_lectura_bat) > interval_lectura_bat)
+  {
+    llegir_bateria(); // Llegim valor bateria
+    mostrar_bat(); // Dibuixem bateria
+    comunicar_bateria(); // Comuniquem bateria
+    ultima_lectura_bat = millis();  
+  }
   if (autoPairing() == PAIR_PAIRED)
   {
-    unsigned long currentMillis = millis();
-    if (currentMillis - previousMillis >= interval)
-    {
-      // Save the last time a new reading was published
-      previousMillis = currentMillis;
-      readBateriaVolts();   // Llegim bateria volts
-      readBateriaPercent(); // Llegim percentatge bateria
-      comunicar_bateria();  // Comuniqem valor bateria
-    }
     if (!mode_configuracio) // Si no estem en mode configuracio
     {
       if (LOCAL_CHANGE)
       {
         comunicar_polsadors(); // Funció per comunicar valors
       }
-      //escriure_display_clock(); // Dibuixem hora
+      escriure_display_clock(); // Dibuixem hora
     }
   }
   else
