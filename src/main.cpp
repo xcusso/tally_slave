@@ -96,7 +96,7 @@ bool POLSADOR_LOCAL_VERD[] = {false, false};
 // Valor dels leds (dels polsadors)
 bool LED_LOCAL_ROIG = false;
 bool LED_LOCAL_VERD = false;
-//Valor bateria
+// Valor bateria
 float bat_local_volt = 0;      // Variable per lectura local de la bateria volts
 uint8_t bat_local_percent = 0; // Variable per lectura local de la bateria percntil
 
@@ -112,7 +112,7 @@ bool post_mode_configuracio = false;     // Final configuració
 
 // Temps per rutines lectura bateria
 unsigned long ultima_lectura_bat;
-const unsigned long interval_lectura_bat = 300000; //Cada 5 minuts - ajustar si cal
+const unsigned long interval_lectura_bat = 300000; // Cada 5 minuts - ajustar si cal
 
 bool No_time = true; // No tenim sincro amb hora
 
@@ -175,7 +175,7 @@ byte baticon[6][8] = {
         B11111,
     },
     {
-        B01110, //100%
+        B01110, // 100%
         B11111,
         B11111,
         B11111,
@@ -328,14 +328,14 @@ unsigned int readingId = 0;
 void llegir_bateria()
 {
   bat_local_volt = 0;
-  for (int i = 0; i < NUM_SAMPLES; i++) {
+  for (int i = 0; i < NUM_SAMPLES; i++)
+  {
     bat_local_volt += analogRead(BATTERY_PIN) * 3.3 / 4096;
   }
-  bat_local_volt /= NUM_SAMPLES; //Fem la mitjana de les lectures
-  bat_local_volt = bat_local_volt + 1.4; //Compensem la caiguda de tensió de 2 diodes en serie 0.7 + 0.7V
+  bat_local_volt /= NUM_SAMPLES;         // Fem la mitjana de les lectures
+  bat_local_volt = bat_local_volt + 1.4; // Compensem la caiguda de tensió de 2 diodes en serie 0.7 + 0.7V
   bat_local_percent = 100 * (bat_local_volt - EMPTY_VOLTAGE) / (FULL_VOLTAGE - EMPTY_VOLTAGE);
 }
-
 
 void escriure_display_1(uint8_t txt1)
 {
@@ -561,6 +561,11 @@ void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status)
 {
   Serial.print("\r\nLast Packet Send Status:\t");
   Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
+  // Si falla iniciem seqüencia de PAIRING.
+  if (status != ESP_NOW_SEND_SUCCESS)
+  {
+    pairingStatus = PAIR_REQUEST;
+  }
 }
 
 void Menu_configuracio()
@@ -760,7 +765,7 @@ void OnDataRecv(const uint8_t *mac_addr, const uint8_t *incomingData, int len)
       }
       LED_LOCAL_ROIG = fromMaster.led_roig[funcio_local];    // Carreguem el valor rebut al LED roig
       LED_LOCAL_VERD = fromMaster.led_verd[funcio_local];    // Carreguem el valor rebut al LED verd
-      escriure_display_1((funcio_local + 1));                  // Per si ha quedat en versio no LINK
+      escriure_display_1((funcio_local + 1));                // Per si ha quedat en versio no LINK
       escriure_leds();                                       // CRIDAR SUBRUTINA ESCRIURE LED
       escriure_matrix(fromMaster.color_tally[funcio_local]); // CRIDAR SUBRUTINA ESCRIURE TALLY
       escriure_display_2(fromMaster.text_2[funcio_local]);   // CRIDAR SUBRUTINA ESCRIURE TEXT
@@ -768,7 +773,7 @@ void OnDataRecv(const uint8_t *mac_addr, const uint8_t *incomingData, int len)
 
     case CLOCK: // Missatge sincronització hora
       memcpy(&clock_fromMaster, incomingData, sizeof(clock_fromMaster));
-      //escriure_display_1(funcio_local + 1);    // Per si ha quedat en versio no LINK
+      // escriure_display_1(funcio_local + 1);    // Per si ha quedat en versio no LINK
       timeinfo = clock_fromMaster.temps_rebut; // Li passem el valor a clock
       No_time = false;
       break;
@@ -794,6 +799,7 @@ void OnDataRecv(const uint8_t *mac_addr, const uint8_t *incomingData, int len)
         pairingStatus = PAIR_PAIRED;            // set the pairing status
         comunicar_polsadors();                  // Comuniquem quina funcio te el SLAVE
         escriure_display_1((funcio_local + 1)); // Mostrem funcio local
+        comunicar_bateria();                    // Enviem la lectura de la bateria
       }
       break;
     }
@@ -863,13 +869,13 @@ void setup()
   lcd.init();      // Inicialitzem lcd
   lcd.backlight(); // Arrenquem la llum de fons lcd
   // Creem els icons de la bateria
-  lcd.createChar(0,baticon[0]); //0%
-  lcd.createChar(1,baticon[1]); //20%
-  lcd.createChar(2,baticon[2]); //40%
-  lcd.createChar(3,baticon[3]); //60%
-  lcd.createChar(4,baticon[4]); //80%
-  lcd.createChar(5,baticon[5]); //100%
-  lcd.clear();     // Esborrem la pantalla
+  lcd.createChar(0, baticon[0]); // 0%
+  lcd.createChar(1, baticon[1]); // 20%
+  lcd.createChar(2, baticon[2]); // 40%
+  lcd.createChar(3, baticon[3]); // 60%
+  lcd.createChar(4, baticon[4]); // 80%
+  lcd.createChar(5, baticon[5]); // 100%
+  lcd.clear();                   // Esborrem la pantalla
 
   Serial.println();
 
@@ -901,11 +907,11 @@ void setup()
   // Esborrem llum
   llum.clear();
   lcd.clear();
-  escriure_display_1((funcio_local + 1)); //Funcio local
-  llegir_bateria(); // Mirem la bateria
-  mostrar_bat(); // Dibuixem nivell bateria
-  last_time_roig = millis(); // Debouncer polsador
-  last_time_verd = millis(); // Debouncer polsador
+  escriure_display_1((funcio_local + 1)); // Funcio local
+  llegir_bateria();                       // Mirem la bateria
+  mostrar_bat();                          // Dibuixem nivell bateria
+  last_time_roig = millis();              // Debouncer polsador
+  last_time_verd = millis();              // Debouncer polsador
   LOCAL_CHANGE = false;
 #ifdef SAVE_CHANNEL
   EEPROM.begin(10);
@@ -921,16 +927,16 @@ void setup()
 }
 
 void loop()
-{ 
+{
   llegir_polsadors();           // Funcio per llegir valors
   detectar_mode_configuracio(); // Mirem si estan els dos apretats per CONFIG
   // Llegim bateria cada interval
   if ((millis() - ultima_lectura_bat) > interval_lectura_bat)
   {
-    llegir_bateria(); // Llegim valor bateria
-    mostrar_bat(); // Dibuixem bateria
+    llegir_bateria();    // Llegim valor bateria
+    mostrar_bat();       // Dibuixem bateria
     comunicar_bateria(); // Comuniquem bateria
-    ultima_lectura_bat = millis();  
+    ultima_lectura_bat = millis();
   }
   if (autoPairing() == PAIR_PAIRED)
   {
@@ -947,7 +953,9 @@ void loop()
   {
     escriure_display_1(5); // Escrivim NO_LINK
     escriure_display_2(1); // Escrivim FORA DE SERVEI
-    escriure_matrix(0); // Color negre
+    escriure_matrix(0);    // Color negre
+    // Hauriem de fer pairing_status = PAIR_REQUEST???
+    // Cal provar si perdem el remot que passa...
     if (debug)
     {
       Serial.println("No emparellat");
