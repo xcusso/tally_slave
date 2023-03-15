@@ -352,6 +352,8 @@ void escriure_display_bateria(uint8_t bat_icona_percent)
 {
   lcd.setCursor(15, 0); // Ultimr caracter, primera linea
   lcd.write((byte)bat_icona_percent);
+  Serial.println("Bateria: ");
+  Serial.println(bat_icona_percent);
 }
 // Seleccionem icona nivell bateria
 void mostrar_bat()
@@ -386,7 +388,7 @@ void escriure_display_clock()
 {
   if (No_time)
   {
-    lcd.setCursor(7, 0);   // Caracter 8, primera linea
+    lcd.setCursor(7, 0);   // Caracter 7, primera linea
     lcd.print("        "); //
   }
   else
@@ -775,6 +777,8 @@ void OnDataRecv(const uint8_t *mac_addr, const uint8_t *incomingData, int len)
       memcpy(&clock_fromMaster, incomingData, sizeof(clock_fromMaster));
       // escriure_display_1(funcio_local + 1);    // Per si ha quedat en versio no LINK
       timeinfo = clock_fromMaster.temps_rebut; // Li passem el valor a clock
+      Serial.print("Clock rebut: ");
+      Serial.println(&timeinfo, "%A, %B %d %Y %H:%M:%S");
       No_time = false;
       break;
 
